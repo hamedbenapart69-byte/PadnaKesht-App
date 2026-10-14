@@ -2,6 +2,11 @@ name: Android Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -15,6 +20,12 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
+          channel: stable
+
+      - name: Generate Flutter project files
+        run: |
+          rm -rf android windows
+          flutter create --platforms=android,windows --project-name padnakesht --org com.padnakesht .
 
       - name: Install dependencies
         run: flutter pub get
@@ -27,3 +38,4 @@ jobs:
         with:
           name: PadnaKesht-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
