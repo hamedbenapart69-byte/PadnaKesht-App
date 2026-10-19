@@ -7,6 +7,7 @@ on:
       - kimi-android
     paths:
       - 'Kimi_Agent_技能插件列表.zip'
+      - 'kimi-source.zip'
       - '.github/workflows/kimi-android.yml'
 
 permissions:
@@ -21,15 +22,20 @@ jobs:
 
       - name: Require original Kimi source archive
         run: |
-          test -f Kimi_Agent_技能插件列表.zip || {
-            echo "::error::Upload the original Kimi_Agent_技能插件列表.zip to the repository root on branch kimi-android."
+          if [ -f kimi-source.zip ]; then
+            ARCHIVE=kimi-source.zip
+          elif [ -f Kimi_Agent_技能插件列表.zip ]; then
+            ARCHIVE=Kimi_Agent_技能插件列表.zip
+          else
+            echo "::error::Upload kimi-source.zip (recommended) or the original Kimi ZIP to the repository root on branch kimi-android."
             exit 1
-          }
+          fi
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Extract original Kimi project
         run: |
           mkdir -p kimi-source
-          unzip -q Kimi_Agent_技能插件列表.zip -d kimi-source
+          unzip -q "$ARCHIVE" -d kimi-source
           test -f kimi-source/app/package.json
           test -f kimi-source/app/index.html
           cd kimi-source/app
