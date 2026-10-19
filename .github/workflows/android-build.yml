@@ -18,31 +18,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore full source package when uploaded
+        shell: bash
+        run: |
+          if [ -f PadnaKesht-source-package-cleaned.zip ]; then
+            unzip -o PadnaKesht-source-package-cleaned.zip -d .
+            echo "PADNA_FULL_SOURCE=true" >> "$GITHUB_ENV"
+          else
+            echo "PADNA_FULL_SOURCE=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
           channel: stable
 
-      - name: Generate Flutter project files
+      - name: Generate Flutter platform files
         run: |
           rm -rf android windows
           flutter create --platforms=android,windows --project-name padnakesht --org com.padnakesht .
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Configure smoke test for scaffold only
+        if: env.PADNA_FULL_SOURCE == 'false'
+        run: |
           cat > test/widget_test.dart <<'EOF'
           import 'package:flutter/material.dart';
           import 'package:flutter_test/flutter_test.dart';
           import 'package:padnakesht/main.dart';
 
           void main() {
-            testWidgets('PadnaKesht launches', (tester) async {
+            testWidgets('application root launches', (tester) async {
               await tester.pumpWidget(const PadnaKeshtApp());
               expect(find.byType(MaterialApp), findsOneWidget);
             });
           }
           EOF
-
-      - name: Install dependencies
-        run: flutter pub get
 
       - name: Analyze
         run: flutter analyze
@@ -50,7 +64,7 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build APK
+      - name: Build release APK
         run: flutter build apk --release
 
       - name: Upload APK
@@ -59,3 +73,4 @@ jobs:
           name: PadnaKesht-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 30
