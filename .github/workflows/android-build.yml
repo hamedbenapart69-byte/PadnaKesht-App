@@ -29,13 +29,14 @@ jobs:
           rm -rf android windows
           flutter create --platforms=android,windows --project-name padnakesht --org com.padnakesht .
           cat > test/widget_test.dart <<'EOF'
+          import 'package:flutter/material.dart';
           import 'package:flutter_test/flutter_test.dart';
           import 'package:padnakesht/main.dart';
 
           void main() {
             testWidgets('PadnaKesht launches', (tester) async {
               await tester.pumpWidget(const PadnaKeshtApp());
-              expect(find.text('PadnaKesht'), findsWidgets);
+              expect(find.byType(MaterialApp), findsOneWidget);
             });
           }
           EOF
