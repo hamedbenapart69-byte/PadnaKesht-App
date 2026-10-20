@@ -53,3 +53,8 @@ test('overdue receivables alert is wired into the offline dashboard', () => {
   assert.match(app, /هشدار مطالبات معوق بیش از ۳۰ روز/);
   assert.match(app, /daysPastDue\(i\.dueDate\)>30/);
 });
+
+
+test('SQLite restore compares snapshots and writes a monotonic timestamp', () => {
+  assert.match(app, /const localTime=Date\.parse\(state\.updatedAt\|\|' '\)/);
+});
