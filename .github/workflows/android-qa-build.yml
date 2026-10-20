@@ -93,7 +93,14 @@ jobs:
             sleep 10
             adb shell pidof com.padnakasht.kimi
             adb shell run-as com.padnakasht.kimi ls databases | grep -q 'padnakashtSQLite.db'
+            # Prove the installed app survives a restart with network connectivity disabled.
+            adb shell settings put global airplane_mode_on 1
+            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true || true
+            adb shell am force-stop com.padnakasht.kimi
+            adb shell am start -n com.padnakasht.kimi/.MainActivity
+            sleep 5
+            adb shell pidof com.padnakasht.kimi
             adb logcat -d > android-emulator-log.txt
-            if grep -E 'FATAL EXCEPTION|SQLite initialization failed|No such plugin' android-emulator-log.txt; then
+            if grep -E 'FATAL EXCEPTION|SQLite initialization failed|No such plugin|Uncaught (ReferenceError|TypeError|SyntaxError)|Uncaught Error' android-emulator-log.txt; then
               exit 1
             fi
