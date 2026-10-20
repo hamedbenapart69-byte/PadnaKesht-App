@@ -114,3 +114,10 @@ test('business forms guard against duplicate submissions while async persistence
     assert.ok(app.includes("guardedSubmit('" + formId + "',async e=>{"), 'missing duplicate-submit guard for ' + formId);
   }
 });
+
+test('native app fails closed instead of exposing local data when encrypted SQLite initialization fails', () => {
+  assert.match(app, /if\(Capacitor\.isNativePlatform\(\)&&!nativeDB\)\{/);
+  assert.match(app, /authPin\.disabled=true/);
+  assert.match(app, /authSubmit\.disabled=true/);
+  assert.match(app, /هیچ اطلاعاتی نمایش داده یا ثبت نمی‌شود/);
+});
