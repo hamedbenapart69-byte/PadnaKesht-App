@@ -1,4 +1,4 @@
-name: Kimi Offline Android APK
+name: Kimi Offline Android Release Gate
 on:
   push:
     branches: [kimi-android]
@@ -32,9 +32,13 @@ jobs:
         run: |
           if npm run release:gate; then
             echo "approved=true" >> "$GITHUB_OUTPUT"
+            echo "## Release gate: APPROVED" >> "$GITHUB_STEP_SUMMARY"
+            echo "Acceptance matrix and required sign-offs passed; the installable APK build may proceed." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "approved=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Release blocked::Acceptance evidence is incomplete; the QA candidate workflow remains separate."
+            echo "## Release gate: BLOCKED" >> "$GITHUB_STEP_SUMMARY"
+            echo "No production APK was built or uploaded. Acceptance evidence is incomplete. Use the separate QA Candidate workflow only for internal testing." >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Release blocked::Acceptance evidence is incomplete; no production APK will be published."
           fi
       - name: Set up Java
         if: steps.release_gate.outputs.approved == 'true'
