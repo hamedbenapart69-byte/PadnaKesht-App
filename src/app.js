@@ -1,4 +1,5 @@
 import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeText, normalizeDigits, daysPastDue, nextInvoiceNumber } from './domain.js';
+import { validateBackupPayload } from './backup.js';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
@@ -125,67 +126,17 @@ const inv=e.target.closest('[data-invoice-cancel]');if(inv){const item=state.inv
 const n=e.target.closest('[data-note-delete]');if(n&&confirm('یادداشت حذف شود؟')){state.notes=state.notes.filter(x=>x.id!==n.dataset.noteDelete);persist();}});
 document.getElementById('noteForm').addEventListener('submit',e=>{e.preventDefault();const text=normalizeText(noteText.value);if(!text)return;state.notes.push({id:uid(),text,createdAt:new Date().toISOString()});persist();e.target.reset();});
 document.getElementById('exportJson').onclick=()=>download('padnakasht-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),'application/json');
-function validBackupRecord(key,item){
-  if(!item||typeof item.id!=='string'||!item.id.trim())return false;
-  const safeAmount=value=>Number.isSafeInteger(value)&&value>=0;
-  const validEntry=entry=>entry&&typeof entry==='object'&&typeof entry.id==='string'&&entry.id.trim()&&Number.isSafeInteger(entry.amountRial)&&entry.amountRial>0;
-  switch(key){
-    case 'customers':return typeof item.name==='string'&&!!item.name.trim()&&['phone','address','notes'].every(k=>item[k]===undefined||typeof item[k]==='string');
-    case 'products':return typeof item.name==='string'&&!!item.name.trim()&&safeAmount(item.priceRial)&&safeAmount(item.stock)&&(item.unit===undefined||typeof item.unit==='string');
-    case 'invoices':{
-      if(typeof item.number!=='string'||!item.number.trim()||typeof item.customerId!=='string'||!item.customerId||!safeAmount(item.totalRial)||!safeAmount(item.paidRial))return false;
-      if(item.status!=='cancelled'&&item.paidRial>item.totalRial)return false;
-      if(item.status==='cancelled'&&item.paidRial!==0)return false;
-      if(item.subtotalRial!==undefined&&!safeAmount(item.subtotalRial))return false;
-      if(item.discountRial!==undefined&&!safeAmount(item.discountRial))return false;
-      if(item.subtotalRial!==undefined&&item.discountRial!==undefined&&(item.discountRial>item.subtotalRial||item.totalRial!==item.subtotalRial-item.discountRial))return false;
-      if(item.lines!==undefined&&(!Array.isArray(item.lines)||!item.lines.every(line=>line&&typeof line.productId==='string'&&line.productId&&Number.isSafeInteger(line.quantity)&&line.quantity>0&&safeAmount(line.unitPriceRial)&&(line.lineTotalRial===undefined||safeAmount(line.lineTotalRial)&&line.lineTotalRial===line.quantity*line.unitPriceRial))))return false;
-      if(item.payments!==undefined&&(!Array.isArray(item.payments)||!item.payments.every(validEntry)))return false;
-      if(item.refunds!==undefined&&(!Array.isArray(item.refunds)||!item.refunds.every(validEntry)))return false;
-      return true;
-    }
-    case 'notes':return typeof item.text==='string';
-    case 'audit':return typeof item.action==='string'&&typeof item.entity==='string';
-    case 'legacyRecords':return true;
-    default:return false;
-  }
-}
 document.getElementById('importButton').onclick=()=>importFile.click();
 document.getElementById('importFile').onchange=async e=>{
   const f=e.target.files?.[0];if(!f)return;
   try{
-    const x=JSON.parse(await f.text());
-    const keys=['customers','products','invoices','notes','audit','legacyRecords'];
-    if(!x||!Array.isArray(x.customers)||!Array.isArray(x.products)||!Array.isArray(x.invoices)||!Array.isArray(x.notes))throw Error('ساختار فایل پشتیبان معتبر نیست.');
-    for(const key of keys){
-      if(x[key]!==undefined&&!Array.isArray(x[key]))throw Error('فهرست '+key+' در فایل پشتیبان معتبر نیست.');
-      if(Array.isArray(x[key])){
-        const ids=new Set();
-        for(const item of x[key]){
-          if(!validBackupRecord(key,item))throw Error('دادهٔ نامعتبر در بخش '+key+'؛ هیچ داده‌ای وارد نشد.');
-          if(ids.has(item.id))throw Error('شناسهٔ تکراری در بخش '+key+'؛ هیچ داده‌ای وارد نشد.');
-          ids.add(item.id);
-        }
-      }
-    }
-    const incomingCustomers=x.customers;
-    const incomingProducts=x.products;
-    const knownCustomers=new Set([...state.customers,...incomingCustomers].map(item=>item.id));
-    const knownProducts=new Set([...state.products,...incomingProducts].map(item=>item.id));
-    const currentInvoiceIds=new Set(state.invoices.map(item=>item.id));
-    const invoiceNumbers=new Map(state.invoices.map(item=>[item.number,item.id]));
-    for(const invoice of x.invoices){
-      if(invoiceNumbers.has(invoice.number)&&invoiceNumbers.get(invoice.number)!==invoice.id&&!currentInvoiceIds.has(invoice.id))throw Error('شمارهٔ فاکتور تکراری است: '+invoice.number+'؛ هیچ داده‌ای وارد نشد.');
-      if(invoice.status!=='cancelled'&&!knownCustomers.has(invoice.customerId))throw Error('مشتری فاکتور در فایل پشتیبان یا دستگاه پیدا نشد؛ هیچ داده‌ای وارد نشد.');
-      const lines=invoice.lines||((invoice.productId)?[{productId:invoice.productId}]:[]);
-      if(invoice.status!=='cancelled'&&lines.some(line=>!knownProducts.has(line.productId)))throw Error('کالای یکی از فاکتورها در فایل پشتیبان یا دستگاه پیدا نشد؛ هیچ داده‌ای وارد نشد.');
-      if(!currentInvoiceIds.has(invoice.id))invoiceNumbers.set(invoice.number,invoice.id);
-    }
-    // Validate the complete file before mutating state, then merge by stable record ID.
-    for(const key of keys){
-      if(!Array.isArray(x[key]))continue;
+    const payload=JSON.parse(await f.text());
+    const validated=validateBackupPayload(payload,state);
+    // Validation completes before the first state mutation.
+    for(const key of ['customers','products','invoices','notes','audit','legacyRecords']){
+      if(!Array.isArray(validated[key]))continue;
       const ids=new Set(state[key].map(item=>item.id));
-      for(const item of x[key])if(!ids.has(item.id)){state[key].push(item);ids.add(item.id);}
+      for(const item of validated[key])if(!ids.has(item.id)){state[key].push(item);ids.add(item.id);}
     }
     state.audit.push({id:uid(),action:'restore-merge',entity:'backup',entityId:'',at:new Date().toISOString()});
     persist();alert('بازیابی و ادغام داده‌ها انجام شد.');

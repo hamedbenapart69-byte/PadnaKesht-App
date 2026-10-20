@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+const backup = readFileSync(new URL('../src/backup.js', import.meta.url), 'utf8');
 test('app shell is Persian and right-to-left', () => {
   assert.match(html, /<html lang="fa" dir="rtl">/);
   assert.match(html, /charset="UTF-8"/i);
