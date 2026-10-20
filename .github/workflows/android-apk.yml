@@ -42,7 +42,8 @@ jobs:
             echo "approved=false" >> "$GITHUB_OUTPUT"
             echo "## Release gate: BLOCKED" >> "$GITHUB_STEP_SUMMARY"
             echo "No production APK was built or uploaded. Acceptance evidence is incomplete. Use the separate QA Candidate workflow only for internal testing." >> "$GITHUB_STEP_SUMMARY"
-            echo "::notice title=Release blocked::Acceptance evidence is incomplete; no production APK will be published."
+            echo "::error title=Release blocked::Acceptance evidence is incomplete; no production APK will be published."
+            exit 1
           fi
       - name: Set up Java
         if: steps.release_gate.outputs.approved == 'true'
