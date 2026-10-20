@@ -23,9 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
-      - name: Checkout dedicated branch
+      - name: Checkout triggering commit
         uses: actions/checkout@v4
-        with:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
