@@ -122,3 +122,17 @@ export function calculateStockAdjustments(products, previousLines = [], nextLine
     return { productId, delta, nextStock: validateStockChange(product.stock, delta) };
   });
 }
+
+/** Format a valid ISO calendar date using the device's Intl Persian calendar implementation. */
+export function formatPersianDate(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    const parsed = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return '—';
+    return parsed.toLocaleDateString('fa-IR-u-ca-persian');
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('fa-IR-u-ca-persian');
+}

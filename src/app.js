@@ -1,4 +1,4 @@
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, calculateStockAdjustments, normalizeText, normalizeDigits, daysPastDue, nextInvoiceNumber } from './domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, calculateStockAdjustments, normalizeText, normalizeDigits, daysPastDue, nextInvoiceNumber, formatPersianDate } from './domain.js';
 import { validateBackupPayload } from './backup.js';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { buildOverdueNotificationPlan } from './notifications.js';
@@ -87,7 +87,7 @@ function uid(){return globalThis.crypto?.randomUUID?.()||Date.now().toString(36)
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function num(v){const n=Number(normalizeDigits(v));if(!Number.isSafeInteger(n)||n<0)throw new Error('مبلغ و تعداد باید عدد صحیح نامنفی باشند.');return n}
 function money(v){return Number(v||0).toLocaleString('fa-IR')+' ریال'}
-function date(v){try{if(!v)return '—';const value=/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v)+'T12:00:00':v;return new Date(value).toLocaleDateString('fa-IR-u-ca-persian')}catch{return '—'}}
+function date(v){try{return formatPersianDate(v)}catch{return '—'}}
 function audit(action,entity,id,detail=''){state.audit.push({id:uid(),action,entity,entityId:id,detail,at:new Date().toISOString()})}
 function csvCell(value){let text=String(value??'');if(/^\s*[=+\-@]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
 function download(name,content,type){const a=document.createElement('a'),u=URL.createObjectURL(new Blob([content],{type}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}

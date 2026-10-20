@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits, daysPastDue, calculateStockAdjustments } from '../src/domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits, daysPastDue, calculateStockAdjustments, formatPersianDate } from '../src/domain.js';
 
 test('Persian and Arabic numerals normalize to ASCII digits', () => { assert.equal(normalizeDigits('۰۹۱۲٣٤'), '091234'); });
 
@@ -63,4 +63,12 @@ test('editing invoice stock restores old quantities before consuming new quantit
   assert.throws(()=>calculateStockAdjustments(products,[{productId:'p1',quantity:3}],[{productId:'p1',quantity:6}]),/موجودی برای این عملیات کافی نیست/);
   assert.throws(()=>calculateStockAdjustments(products,[],[{productId:'missing',quantity:1}]),/وجود ندارد/);
   assert.throws(()=>calculateStockAdjustments(products,[],[{productId:'p1',quantity:0}]),/نامعتبر/);
+});
+
+test('Persian calendar formatting handles Nowruz, leap day, and invalid dates', () => {
+  assert.match(formatPersianDate('2026-03-21'), /۱۴۰۵/);
+  assert.notEqual(formatPersianDate('2024-02-29'), '—');
+  assert.equal(formatPersianDate('2025-02-29'), '—');
+  assert.equal(formatPersianDate(''), '—');
+  assert.equal(formatPersianDate('not-a-date'), '—');
 });
