@@ -9,6 +9,23 @@ import { createPinCredential, verifyPinCredential, isValidPin } from './auth.js'
 import { buildOfflineInsights } from './insights.js';
 
 const KEY = 'padnakasht-local-v2';
+const themeToggle = document.getElementById('themeToggle');
+function applyTheme(theme){
+  const dark=theme==='dark';
+  document.documentElement.dataset.theme=dark?'dark':'light';
+  if(themeToggle){
+    themeToggle.textContent=dark?'☀️ حالت روشن':'🌙 حالت تاریک';
+    themeToggle.setAttribute('aria-pressed',String(dark));
+  }
+}
+let initialTheme='light';
+try{const savedTheme=localStorage.getItem('padnakasht-theme');if(savedTheme==='dark'||savedTheme==='light')initialTheme=savedTheme;}catch{}
+applyTheme(initialTheme);
+themeToggle?.addEventListener('click',()=>{
+  const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
+  applyTheme(next);
+  try{localStorage.setItem('padnakasht-theme',next);}catch{}
+});
 const customerEditId = document.getElementById('customerEditId');
 const productEditId = document.getElementById('productEditId');
 const customerName = document.getElementById('customerName');
