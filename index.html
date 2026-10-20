@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#132b3a"><meta name="description" content="ابزار آفلاین مدیریت اطلاعات و خروجی گرفتن">
+<title>Kimi Offline</title>
+<style>
+:root{font-family:Tahoma,Arial,sans-serif;color:#172b36;background:#f3f6f8}*{box-sizing:border-box}body{margin:0}header{background:#132b3a;color:white;padding:22px 18px 18px}header h1{font-size:22px;margin:0 0 8px}header p{margin:0;color:#d4e1e8;font-size:13px}.wrap{max-width:900px;margin:auto;padding:14px}.tabs{display:flex;gap:8px;overflow:auto;padding:8px 0 14px}.tabs button,.btn{border:0;border-radius:10px;padding:11px 14px;background:#e0e9ee;color:#183747;font-weight:700;white-space:nowrap}.tabs button.active,.btn.primary{background:#176b87;color:white}.panel,.stat{background:white;border:1px solid #e1e8ec;border-radius:14px;padding:15px;margin-bottom:12px;box-shadow:0 3px 12px #17384908}.panel h2{font-size:17px;margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.stat small{display:block;color:#627783;margin-bottom:8px}.stat strong{font-size:21px;overflow-wrap:anywhere}.field{display:flex;flex-direction:column;gap:6px;margin-bottom:11px}.field label{font-size:13px;color:#536873}.field input,.field select,.field textarea{width:100%;border:1px solid #cbd8df;border-radius:9px;padding:11px;font:inherit;background:white}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{cursor:pointer}.btn.danger{background:#fce9e7;color:#9b3026}.hint{font-size:12px;color:#657984;line-height:1.8}.record{border-top:1px solid #edf1f3;padding:11px 0;display:flex;justify-content:space-between;gap:10px;align-items:center}.record strong{display:block}.record small{color:#6b7e88}.empty{padding:18px;text-align:center;color:#6b7e88}.hidden{display:none!important}footer{text-align:center;color:#71838d;font-size:11px;padding:10px 0 26px}@media(min-width:650px){.wrap{padding:22px}}
+</style>
+</head>
+<body>
+<header><h1>ابزار آفلاین Kimi</h1><p>ذخیره‌سازی روی همین دستگاه · بدون نیاز به حساب کاربری یا اینترنت</p></header>
+<main class="wrap">
+<div class="grid" id="summary"></div>
+<nav class="tabs" aria-label="بخش‌ها">
+<button class="active" data-tab="records">اطلاعات</button><button data-tab="notes">یادداشت‌ها</button><button data-tab="backup">خروجی و پشتیبان</button>
+</nav>
+<section id="records" class="panel">
+<h2>ثبت اطلاعات</h2>
+<form id="recordForm">
+<div class="field"><label for="kind">نوع اطلاعات</label><select id="kind"><option>مشتری</option><option>محصول</option><option>فاکتور</option><option>تراکنش</option><option>یادداشت</option></select></div>
+<div class="field"><label for="name">عنوان</label><input id="name" required maxlength="160" placeholder="نام یا عنوان"></div>
+<div class="field"><label for="detail">توضیحات</label><textarea id="detail" rows="3" maxlength="4000" placeholder="جزئیات، مبلغ یا توضیحات"></textarea></div>
+<div class="actions"><button class="btn primary" type="submit">ذخیره روی دستگاه</button><button class="btn" type="reset">پاک‌کردن فرم</button></div>
+</form>
+<div class="field" style="margin-top:16px"><label for="search">جست‌وجو در اطلاعات</label><input id="search" placeholder="جست‌وجوی عنوان یا توضیحات"></div>
+<div id="recordList"></div>
+</section>
+<section id="notes" class="panel hidden"><h2>یادداشت سریع</h2><form id="noteForm"><div class="field"><label for="noteText">متن یادداشت</label><textarea id="noteText" rows="5" maxlength="10000" required placeholder="یادداشت را بنویسید..."></textarea></div><button class="btn primary">ذخیره یادداشت</button></form><p class="hint">یادداشت‌ها فقط در حافظه محلی همین دستگاه نگهداری می‌شوند.</p><div id="noteList"></div></section>
+<section id="backup" class="panel hidden"><h2>خروجی و پشتیبان‌گیری</h2><p class="hint">برای جلوگیری از ازدست‌رفتن اطلاعات، هر از گاهی نسخه پشتیبان JSON بگیرید. اطلاعات این نسخه به سرور ارسال نمی‌شود.</p><div class="actions"><button id="exportJson" class="btn primary">دریافت پشتیبان JSON</button><button id="exportCsv" class="btn">خروجی CSV</button><button id="print" class="btn">چاپ / ذخیره PDF</button></div><hr style="border:0;border-top:1px solid #e6edf0;margin:18px 0"><div class="field"><label for="importFile">بازیابی از فایل پشتیبان JSON</label><input type="file" id="importFile" accept=".json,application/json"></div><button id="clearAll" class="btn danger">حذف همه اطلاعات این دستگاه</button><p class="hint">بازیابی، داده‌های فعلی را با داده‌های فایل ادغام می‌کند. حذف همه اطلاعات برگشت‌پذیر نیست.</p></section>
+<footer>نسخهٔ اولیهٔ آفلاین · اطلاعات در فضای ذخیره‌سازی مرورگر/اپ نگهداری می‌شود</footer>
+</main>
+<script>
+const KEY='kimi-offline-v1';
+let state=load();
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'{"records":[],"notes":[]}');return {records:Array.isArray(x.records)?x.records:[],notes:Array.isArray(x.notes)?x.notes:[]}}catch{return {records:[],notes:[]}}}
+function save(){localStorage.setItem(KEY,JSON.stringify(state));render()}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function id(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)}
+function download(name,content,type){const a=document.createElement('a'),u=URL.createObjectURL(new Blob([content],{type}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function render(){const kinds=['مشتری','محصول','فاکتور','تراکنش','یادداشت'];document.getElementById('summary').innerHTML=kinds.slice(0,4).map(k=>'<div class="stat"><small>'+k+'</small><strong>'+state.records.filter(r=>r.kind===k).length.toLocaleString('fa-IR')+'</strong></div>').join('');
+const q=document.getElementById('search').value.trim().toLowerCase();const rows=state.records.filter(r=>(r.name+' '+r.detail+' '+r.kind).toLowerCase().includes(q)).slice().reverse();
+document.getElementById('recordList').innerHTML=rows.length?rows.map(r=>'<div class="record"><div><strong>'+esc(r.name)+'</strong><small>'+esc(r.kind)+' · '+esc(new Date(r.created).toLocaleString('fa-IR'))+'</small><div class="hint">'+esc(r.detail)+'</div></div><button class="btn danger" data-delete="'+esc(r.id)+'" aria-label="حذف">حذف</button></div>').join(''):'<div class="empty">هنوز اطلاعاتی ثبت نشده است.</div>';
+document.getElementById('noteList').innerHTML=state.notes.slice().reverse().map(n=>'<div class="record"><div>'+esc(n.text)+'<br><small>'+esc(new Date(n.created).toLocaleString('fa-IR'))+'</small></div><button class="btn danger" data-note-delete="'+esc(n.id)+'">حذف</button></div>').join('')||'<div class="empty">یادداشتی وجود ندارد.</div>'}
+document.getElementById('recordForm').addEventListener('submit',e=>{e.preventDefault();state.records.push({id:id(),kind:document.getElementById('kind').value,name:document.getElementById('name').value.trim(),detail:document.getElementById('detail').value.trim(),created:new Date().toISOString()});save();e.target.reset()});
+document.getElementById('noteForm').addEventListener('submit',e=>{e.preventDefault();state.notes.push({id:id(),text:document.getElementById('noteText').value.trim(),created:new Date().toISOString()});save();e.target.reset()});
+document.getElementById('search').addEventListener('input',render);
+document.addEventListener('click',e=>{const d=e.target.closest('[data-delete]');if(d){state.records=state.records.filter(r=>r.id!==d.dataset.delete);save()}const n=e.target.closest('[data-note-delete]');if(n){state.notes=state.notes.filter(r=>r.id!==n.dataset.noteDelete);save()}});
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));['records','notes','backup'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==b.dataset.tab))}));
+document.getElementById('exportJson').onclick=()=>download('kimi-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,exportedAt:new Date().toISOString(),formatVersion:1},null,2),'application/json');
+document.getElementById('exportCsv').onclick=()=>{const rows=[['نوع','عنوان','توضیحات','تاریخ'],...state.records.map(r=>[r.kind,r.name,r.detail,r.created])];const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');download('kimi-data.csv',csv,'text/csv;charset=utf-8')};
+document.getElementById('print').onclick=()=>window.print();
+document.getElementById('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!Array.isArray(x.records)||!Array.isArray(x.notes))throw Error('invalid');const have=new Set(state.records.map(r=>r.id));state.records.push(...x.records.filter(r=>r&&r.id&&!have.has(r.id)));const nh=new Set(state.notes.map(n=>n.id));state.notes.push(...x.notes.filter(n=>n&&n.id&&!nh.has(n.id)));save();alert('بازیابی انجام شد.')}catch{alert('فایل پشتیبان معتبر نیست.')}e.target.value=''};
+document.getElementById('clearAll').onclick=()=>{if(confirm('تمام اطلاعات محلی حذف شود؟ این کار برگشت‌پذیر نیست.')){state={records:[],notes:[]};save()}};
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+render();
+</script>
+</body></html>
