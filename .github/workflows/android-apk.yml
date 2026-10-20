@@ -8,37 +8,56 @@ permissions:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: kimi-android
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install
+      - name: Run unit and source tests
+        run: npm test
+      - name: Build web assets for engineering validation
+        run: npm run build
+      - name: Verify bundled offline entry point
+        run: test -s dist/index.html
+      - name: Block APK build until acceptance and review gates pass
+        run: npm run release:gate
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-      - name: Install dependencies
-        run: npm install
-      - name: Run smoke tests
-        run: npm test
-      - name: Block release until acceptance and review gates pass
-        run: npm run release:gate
-      - name: Build web assets
-        run: npm run build
-      - name: Generate Android project
-        run: npx cap add android
-      - name: Sync Capacitor
-        run: npx cap sync android
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Prepare Android project
+        run: |
+          if [ ! -f android/gradlew ]; then
+            rm -rf android
+            npx cap add android
+          fi
+          npx cap sync android
+          test -f android/gradlew
+          test -s android/app/src/main/assets/public/index.html
       - name: Build debug APK
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-      - name: Upload installable APK
+        run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug
+      - name: Verify and checksum APK
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          sha256sum "$APK" | tee apk-sha256.txt
+      - name: Upload installable APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: kimi-offline-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: PadnaKesht-Kimi-Offline-Android-debug
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            apk-sha256.txt
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
