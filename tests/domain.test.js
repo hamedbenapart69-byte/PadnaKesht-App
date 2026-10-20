@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits } from '../src/domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits, daysPastDue } from '../src/domain.js';
 
 test('Persian and Arabic numerals normalize to ASCII digits', () => { assert.equal(normalizeDigits('۰۹۱۲٣٤'), '091234'); });
 
@@ -34,4 +34,15 @@ test('stock changes cannot create negative inventory', () => {
   assert.equal(validateStockChange(5, -3), 2);
   assert.throws(() => validateStockChange(1, -2), /کافی نیست/);
   assert.throws(() => validateStockChange(-1, 1), /نامعتبر/);
+});
+
+
+test('overdue days use calendar boundaries and ignore invalid due dates', () => {
+  const today = new Date(2026, 9, 20, 12, 0, 0);
+  assert.equal(daysPastDue('2026-10-20', today), 0);
+  assert.equal(daysPastDue('2026-10-19', today), 1);
+  assert.equal(daysPastDue('2026-09-20', today), 30);
+  assert.equal(daysPastDue('2026-09-19', today), 31);
+  assert.equal(daysPastDue('2026-02-30', today), 0);
+  assert.equal(daysPastDue('', today), 0);
 });
