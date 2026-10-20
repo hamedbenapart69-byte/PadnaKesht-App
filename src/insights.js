@@ -2,7 +2,7 @@ const DAY_MS = 86400000;
 
 function validDate(value) {
   if (typeof value !== 'string') return null;
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})(.*)$/.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})(.*)$/.exec(value);
   if (!match) return null;
   const [, yearText, monthText, dayText, suffix] = match;
   const year = Number(yearText), month = Number(monthText), day = Number(dayText);
@@ -10,7 +10,7 @@ function validDate(value) {
   if (calendarDate.getUTCFullYear() !== year ||
       calendarDate.getUTCMonth() !== month - 1 ||
       calendarDate.getUTCDate() !== day) return null;
-  if (suffix && !/^T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:?\\d{2})?$/.test(suffix)) return null;
+  if (suffix && !/^T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(suffix)) return null;
   const date = new Date(suffix ? value : value + 'T12:00:00');
   return Number.isNaN(date.getTime()) ? null : date;
 }
