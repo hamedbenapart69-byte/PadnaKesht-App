@@ -7,6 +7,7 @@ on:
       - kimi-android
     paths:
       - 'index.html'
+      - 'src/**'
       - 'package.json'
       - 'package-lock.json'
       - 'capacitor.config.ts'
@@ -43,14 +44,14 @@ jobs:
       - name: Run offline source smoke tests
         run: npm test
 
-      - name: Mandatory acceptance and documented review gate
-        run: npm run release:gate
-
-      - name: Build web assets only after approval gate passes
+      - name: Build and validate web assets (not an APK release)
         run: npm run build
 
       - name: Verify bundled offline entry point
         run: test -s dist/index.html
+
+      - name: Mandatory acceptance and documented review gate
+        run: npm run release:gate
 
       - name: Set up Java
         uses: actions/setup-java@v4
