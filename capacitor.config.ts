@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.padnakesht.kimi',
+  appId: 'com.padnakasht.kimi',
   appName: 'پادناکِشت',
   webDir: 'dist',
   bundledWebRuntime: false,
