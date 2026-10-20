@@ -16,6 +16,8 @@ test('business modules and backup controls exist', () => {
     assert.ok(app.includes(feature), 'missing implementation reference: ' + feature);
   }
   assert.match(app, /padnakasht-backup/);
+  assert.match(app, /SQLiteConnection/);
+  assert.match(app, /CREATE TABLE IF NOT EXISTS app_state/);
   assert.match(app, /application\/json/);
 });
 test('dynamic user content is escaped before rendering', () => {
