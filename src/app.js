@@ -1,4 +1,4 @@
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeText } from './domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeText, normalizeDigits } from './domain.js';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
@@ -52,7 +52,7 @@ function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');i
 function persist(){const snapshot=JSON.stringify(state);try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی جایگزین ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>syncNormalizedTables(nativeDB,snapshot)).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه داده SQLite. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}render();}
 function uid(){return globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function num(v){const n=Number(v);if(!Number.isSafeInteger(n)||n<0)throw new Error('مبلغ و تعداد باید عدد صحیح نامنفی باشند.');return n}
+function num(v){const n=Number(normalizeDigits(v));if(!Number.isSafeInteger(n)||n<0)throw new Error('مبلغ و تعداد باید عدد صحیح نامنفی باشند.');return n}
 function money(v){return Number(v||0).toLocaleString('fa-IR')+' ریال'}
 function date(v){try{if(!v)return '—';const value=/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v)+'T12:00:00':v;return new Date(value).toLocaleDateString('fa-IR-u-ca-persian')}catch{return '—'}}
 function audit(action,entity,id,detail=''){state.audit.push({id:uid(),action,entity,entityId:id,detail,at:new Date().toISOString()})}
