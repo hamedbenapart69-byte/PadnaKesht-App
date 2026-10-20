@@ -28,7 +28,7 @@ export function buildXlsx(sheets) {
   const names=new Set();
   for(const sheet of sheets){
     if(!sheet||typeof sheet.name!=='string'||!sheet.name.trim()||sheet.name.length>31||
-       sheet.name.includes('/')||sheet.name.includes('\\\\')||/[*?:\[\]]/.test(sheet.name)||names.has(sheet.name)||!Array.isArray(sheet.rows)){
+       sheet.name.includes('/')||sheet.name.includes('\\')||/[*?:\[\]]/.test(sheet.name)||names.has(sheet.name)||!Array.isArray(sheet.rows)){
       throw new Error('نام یا ساختار یکی از برگه‌های Excel معتبر نیست.');
     }
     names.add(sheet.name);
