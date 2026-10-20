@@ -60,3 +60,12 @@ test('SQLite restore compares snapshots and writes a monotonic timestamp', () =>
   assert.match(app, /state\.updatedAt=new Date\(\)\.toISOString\(\)/);
   assert.match(app, /sqliteTime>=localTime/);
 });
+
+
+test('invoice line editor helpers exist and enforce at least one line', () => {
+  assert.match(app, /function refreshInvoiceLineOptions\(/);
+  assert.match(app, /function addInvoiceLine\(/);
+  assert.match(app, /invoice-line-product/);
+  assert.match(app, /فاکتور باید دست‌کم یک قلم داشته باشد/);
+  assert.match(app, /if\(!document\.querySelector\('\.invoice-line'\)\)addInvoiceLine\(\)/);
+});
