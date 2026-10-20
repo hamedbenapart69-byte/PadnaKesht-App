@@ -19,6 +19,8 @@ export function validBackupRecord(key, item) {
           typeof item.customerId !== 'string' || !item.customerId ||
           !safeAmount(item.totalRial) || !safeAmount(item.paidRial)) return false;
       if (item.status !== 'cancelled' && item.paidRial > item.totalRial) return false;
+      if (item.status !== 'cancelled' && ((!Array.isArray(item.lines) || item.lines.length === 0) && !item.productId)) return false;
+      if (item.status !== 'cancelled' && Array.isArray(item.lines) && item.lines.length === 0) return false;
       if (item.status === 'cancelled' && item.paidRial !== 0) return false;
       if (item.subtotalRial !== undefined && !safeAmount(item.subtotalRial)) return false;
       if (item.discountRial !== undefined && !safeAmount(item.discountRial)) return false;

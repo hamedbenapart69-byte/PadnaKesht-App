@@ -71,3 +71,10 @@ test('backup rejects an edited existing invoice that takes another invoice numbe
     customers:[customer],products:[product],invoices:[edited],notes:[]
   },existing),/شمارهٔ فاکتور تکراری/);
 });
+
+test('backup rejects active invoices without at least one product line', () => {
+  assert.equal(validBackupRecord('invoices', {...invoice, lines:[]}), false);
+  const {lines,productId,...withoutLines}=invoice;
+  assert.equal(validBackupRecord('invoices', withoutLines), false);
+  assert.equal(validBackupRecord('invoices', {...withoutLines, status:'cancelled', paidRial:0}), true);
+});
