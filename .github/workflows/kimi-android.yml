@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout Kimi Android branch
         uses: actions/checkout@v4
+        with:
+          ref: kimi-android
 
       - name: Require original Kimi source archive
         run: |
@@ -27,19 +29,19 @@ jobs:
           elif [ -f Kimi_Agent_技能插件列表.zip ]; then
             ARCHIVE=Kimi_Agent_技能插件列表.zip
           else
-            echo "::error::Upload kimi-source.zip (recommended) or the original Kimi ZIP to the repository root on branch kimi-android."
+            echo "::error::The original Kimi ZIP is not committed on branch kimi-android. The build cannot proceed until the archive is uploaded."
             exit 1
           fi
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
-      - name: Extract original Kimi project
+      - name: Validate and extract Kimi project
         run: |
+          unzip -t "$ARCHIVE"
           mkdir -p kimi-source
           unzip -q "$ARCHIVE" -d kimi-source
           test -f kimi-source/app/package.json
+          test -f kimi-source/app/package-lock.json
           test -f kimi-source/app/index.html
-          cd kimi-source/app
-          node -e "const p=require('./package.json'); console.log('Source project:',p.name || 'Kimi project')"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -48,15 +50,28 @@ jobs:
           cache: npm
           cache-dependency-path: kimi-source/app/package-lock.json
 
-      - name: Install web dependencies
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install source dependencies
         working-directory: kimi-source/app
         run: npm ci
 
-      - name: Build web frontend
+      - name: TypeScript check
         working-directory: kimi-source/app
-        run: npx vite build
+        run: npm run check
 
-      - name: Prepare Capacitor Android wrapper
+      - name: Unit tests
+        working-directory: kimi-source/app
+        run: npm test -- --passWithNoTests
+
+      - name: Add Capacitor Android support
         working-directory: kimi-source/app
         run: |
           npm install @capacitor/core@^6 @capacitor/android@^6
@@ -65,22 +80,26 @@ jobs:
           import type { CapacitorConfig } from '@capacitor/cli';
           const config: CapacitorConfig = {
             appId: 'com.padnakesht.kimi',
-            appName: 'پادناکشت',
-            webDir: 'dist',
+            appName: 'پادناکشت کیمی',
+            webDir: 'dist/public',
             bundledWebRuntime: false
           };
           export default config;
           EOF
+
+      - name: Build web app
+        working-directory: kimi-source/app
+        run: npm run build
+
+      - name: Create and sync Android project
+        working-directory: kimi-source/app
+        run: |
           npx cap add android
           npx cap sync android
+          test -f android/gradlew
+          test -d dist/public
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Build APK
+      - name: Build debug APK
         working-directory: kimi-source/app/android
         run: |
           chmod +x gradlew
@@ -89,7 +108,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PadnaKesht-Kimi-Android-APK
+          name: Kimi-Android-debug-APK
           path: kimi-source/app/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
