@@ -1,0 +1,6 @@
+{
+  "appId": "com.padnakasht.kimi",
+  "appName": "Kimi Offline",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
