@@ -1,4 +1,6 @@
 import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeText } from './domain.js';
+import { Capacitor } from '@capacitor/core';
+import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
 const KEY = 'padnakasht-local-v2';
 const customerName = document.getElementById('customerName');
@@ -20,9 +22,14 @@ const noteText = document.getElementById('noteText');
 const importFile = document.getElementById('importFile');
 
 const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:[],audit:[],legacyRecords:[]});
+let nativeDB = null;
+let nativeWriteQueue = Promise.resolve();
 let state = loadState();
+async function initializeNativeDatabase(){if(!Capacitor.isNativePlatform()){const status=document.getElementById('storageStatus');if(status)status.textContent='حالت مرورگر: ذخیره‌سازی محلی';return null;}try{const sqlite=new SQLiteConnection(CapacitorSQLite);let db;if(await sqlite.isConnection('padnakasht',false)){db=await sqlite.retrieveConnection('padnakasht',false);}else{db=await sqlite.createConnection('padnakasht',false,'no-encryption',1,false);}await db.open();await db.execute('CREATE TABLE IF NOT EXISTS app_state (id INTEGER PRIMARY KEY NOT NULL, payload TEXT NOT NULL)');const result=await db.query('SELECT payload FROM app_state WHERE id = 1');const payload=result.values?.[0]?.payload;if(payload){const restored=JSON.parse(payload);if(restored&&restored.version===2)state={...emptyState(),...restored};}else{await db.run('INSERT OR REPLACE INTO app_state (id, payload) VALUES (1, ?)',[JSON.stringify(state)]);}const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';return db;}catch(error){const status=document.getElementById('storageStatus');if(status)status.textContent='هشدار: SQLite در دسترس نیست؛ ذخیره‌سازی جایگزین مرورگر فعال است.';console.error('SQLite initialization failed',error);return null;}}
+nativeDB = await initializeNativeDatabase();
+if(nativeDB){try{localStorage.setItem(KEY,JSON.stringify(state));}catch{}}
 function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.version===2)return {...emptyState(),...x};}catch{}const fresh=emptyState();try{const old=JSON.parse(localStorage.getItem('kimi-offline-v1')||'null');if(old&&Array.isArray(old.records)){fresh.legacyRecords=old.records.filter(r=>r&&typeof r==='object');fresh.notes=(Array.isArray(old.notes)?old.notes:[]).filter(n=>n&&typeof n==='object').map(n=>({id:String(n.id||uid()),text:String(n.text||''),createdAt:n.created||new Date().toISOString()}));fresh.audit.push({id:uid(),action:'legacy-migration',entity:'backup',entityId:'kimi-offline-v1',at:new Date().toISOString()});} }catch{}return fresh;}
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));render();}catch(e){alert('ذخیره‌سازی انجام نشد؛ فضای دستگاه یا دسترسی ذخیره‌سازی را بررسی کنید.');throw e;}}
+function persist(){const snapshot=JSON.stringify(state);try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی جایگزین ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>nativeDB.run('INSERT OR REPLACE INTO app_state (id, payload) VALUES (1, ?)',[snapshot])).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه داده SQLite. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}render();}
 function uid(){return globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function num(v){const n=Number(v);if(!Number.isSafeInteger(n)||n<0)throw new Error('مبلغ و تعداد باید عدد صحیح نامنفی باشند.');return n}
