@@ -32,6 +32,25 @@ export function validBackupRecord(key, item) {
           safeAmount(line.lineTotalRial) && line.lineTotalRial === line.quantity * line.unitPriceRial)))) return false;
       if (item.payments !== undefined && (!Array.isArray(item.payments) || !item.payments.every(validEntry))) return false;
       if (item.refunds !== undefined && (!Array.isArray(item.refunds) || !item.refunds.every(validEntry))) return false;
+      if (Array.isArray(item.lines)) {
+        const lineSum = item.lines.reduce((sum, line) => {
+          const amount = line.quantity * line.unitPriceRial;
+          return Number.isSafeInteger(amount) && Number.isSafeInteger(sum + amount) ? sum + amount : Number.NaN;
+        }, 0);
+        if (!Number.isSafeInteger(lineSum)) return false;
+        if (item.subtotalRial !== undefined && lineSum !== item.subtotalRial) return false;
+      }
+      if (Array.isArray(item.payments)) {
+        const paid = item.payments.reduce((sum, entry) =>
+          Number.isSafeInteger(sum + entry.amountRial) ? sum + entry.amountRial : Number.NaN, 0);
+        if (!Number.isSafeInteger(paid)) return false;
+        if (item.status !== 'cancelled' && paid !== item.paidRial) return false;
+        if (item.status === 'cancelled' && Array.isArray(item.refunds)) {
+          const refunded = item.refunds.reduce((sum, entry) =>
+            Number.isSafeInteger(sum + entry.amountRial) ? sum + entry.amountRial : Number.NaN, 0);
+          if (!Number.isSafeInteger(refunded) || refunded !== paid) return false;
+        }
+      }
       return true;
     }
     case 'notes': return typeof item.text === 'string';
@@ -62,7 +81,21 @@ export function validateBackupPayload(payload, currentState) {
   const knownProducts = new Set([...(currentState.products || []), ...payload.products].map(item => item.id));
   const currentInvoiceIds = new Set((currentState.invoices || []).map(item => item.id));
   const invoiceNumbers = new Map((currentState.invoices || []).map(item => [item.number, item.id]));
+  const childIds = new Map();
+  for (const invoice of currentState.invoices || []) {
+    for (const entry of [...(invoice.payments || []), ...(invoice.refunds || [])]) {
+      if (entry && typeof entry.id === 'string') childIds.set(entry.id, invoice.id);
+    }
+  }
   for (const invoice of payload.invoices) {
+    const localChildIds = new Set();
+    for (const entry of [...(invoice.payments || []), ...(invoice.refunds || [])]) {
+      if (localChildIds.has(entry.id)) throw new Error('شناسهٔ تکراری برای تراکنش داخلی فاکتور؛ هیچ داده‌ای وارد نشد.');
+      localChildIds.add(entry.id);
+      const owner = childIds.get(entry.id);
+      if (owner && owner !== invoice.id) throw new Error('شناسهٔ تراکنش بین دو فاکتور تکرار شده است؛ هیچ داده‌ای وارد نشد.');
+    }
+    for (const entry of localChildIds) childIds.set(entry, invoice.id);
     if (invoiceNumbers.has(invoice.number) && invoiceNumbers.get(invoice.number) !== invoice.id &&
         !currentInvoiceIds.has(invoice.id)) {
       throw new Error('شمارهٔ فاکتور تکراری است: ' + invoice.number + '؛ هیچ داده‌ای وارد نشد.');

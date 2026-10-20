@@ -41,3 +41,22 @@ test('backup tolerates omitted optional audit and legacy arrays', () => {
   assert.equal(result.audit,undefined);
   assert.equal(result.legacyRecords,undefined);
 });
+
+test('backup rejects payment totals that do not reconcile with invoice paid balance', () => {
+  const inconsistent = {...invoice, payments:[{id:'pay1',amountRial:40000}]};
+  assert.equal(validBackupRecord('invoices', inconsistent), false);
+  const consistent = {...invoice, payments:[{id:'pay1',amountRial:50000}]};
+  assert.equal(validBackupRecord('invoices', consistent), true);
+});
+
+test('backup rejects line subtotals and cancellation refunds that do not reconcile', () => {
+  assert.equal(validBackupRecord('invoices', {...invoice, subtotalRial:210000}), false);
+  const cancelled = {...invoice, status:'cancelled', paidRial:0, payments:[{id:'pay2',amountRial:50000}], refunds:[{id:'refund2',amountRial:40000}]};
+  assert.equal(validBackupRecord('invoices', cancelled), false);
+});
+
+test('backup rejects child transaction IDs reused across invoices', () => {
+  const second = {...invoice, id:'i2', number:'PK-00002', payments:[{id:'shared-payment',amountRial:50000}]};
+  const first = {...invoice, payments:[{id:'shared-payment',amountRial:50000}]};
+  assert.throws(()=>validateBackupPayload({customers:[customer],products:[product],invoices:[first,second],notes:[]},empty()), /شناسهٔ تراکنش بین دو فاکتور/);
+});
