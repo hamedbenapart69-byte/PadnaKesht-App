@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       - name: Keep Capacitor 6 compatible with patched tar
         run: node scripts/patch-capacitor-cli-tar.mjs
       - name: Audit installed dependencies
