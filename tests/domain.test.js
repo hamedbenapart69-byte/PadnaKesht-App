@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange } from '../src/domain.js';
+
+test('customer requires a name and rejects duplicate normalized name or phone', () => {
+  assert.throws(() => validateCustomer({ name: ' ' }), /نام مشتری/);
+  const existing = [{ name: 'آقای مقصودی', phone: '09121234567' }];
+  assert.throws(() => validateCustomer({ name: 'مشتری دیگر', phone: '09121234567' }, existing), /تکراری/);
+  assert.equal(validateCustomer({ name: '  سارا   احمدی ', phone: '' }).name, 'سارا احمدی');
+});
+
+test('invoice totals use integer rials and validate discounts', () => {
+  const invoice = calculateInvoice([
+    { productId: 'p1', quantity: 2, unitPriceRial: 125000 },
+    { productId: 'p2', quantity: 1, unitPriceRial: 50000 },
+  ], 25000);
+  assert.equal(invoice.subtotalRial, 300000);
+  assert.equal(invoice.totalRial, 275000);
+  assert.throws(() => calculateInvoice([{ productId: 'p1', quantity: 0, unitPriceRial: 10 }]), /تعداد/);
+  assert.throws(() => calculateInvoice([{ productId: 'p1', quantity: 1, unitPriceRial: 10 }], 11), /تخفیف/);
+});
+
+test('partial payments calculate balance and reject overpayment', () => {
+  const invoice = calculateInvoice([{ productId: 'p1', quantity: 1, unitPriceRial: 1000 }]);
+  assert.deepEqual(applyPayment(invoice, [{ amountRial: 200 }], 300), { paidRial: 500, remainingRial: 500 });
+  assert.throws(() => applyPayment(invoice, [{ amountRial: 900 }], 101), /بیشتر/);
+  assert.throws(() => applyPayment(invoice, [], 0), /مثبت/);
+});
+
+test('stock changes cannot create negative inventory', () => {
+  assert.equal(validateStockChange(5, -3), 2);
+  assert.throws(() => validateStockChange(1, -2), /کافی نیست/);
+  assert.throws(() => validateStockChange(-1, 1), /نامعتبر/);
+});
