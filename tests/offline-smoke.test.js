@@ -22,8 +22,9 @@ test('business modules and backup controls exist', () => {
   for (const table of ['customers','products','invoices','invoice_lines','payments','notes','audit_log']) assert.ok(app.includes('CREATE TABLE IF NOT EXISTS ' + table), 'missing SQLite table ' + table);
   assert.match(app, /function csvCell/);
   assert.match(app, /function xmlEsc/);
-  assert.match(app, /function validBackupRecord/);
-  assert.match(app, /دادهٔ نامعتبر در بخش/);
+  assert.match(backup, /export function validBackupRecord/);
+  assert.match(backup, /دادهٔ نامعتبر در بخش/);
+  assert.match(app, /validateBackupPayload\(payload,state\)/);
   assert.match(app, /Excel.Sheet/);
   assert.match(app, /typeof value==='number'\&\&Number.isFinite\(value\)\?'Number':'String'/);
   assert.match(app, /text=\"'\"\+text/);
