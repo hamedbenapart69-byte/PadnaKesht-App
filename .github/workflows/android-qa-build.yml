@@ -26,7 +26,6 @@ jobs:
       - name: Checkout dedicated branch
         uses: actions/checkout@v4
         with:
-          ref: kimi-android
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
