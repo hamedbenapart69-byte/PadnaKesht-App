@@ -46,3 +46,10 @@ test('overdue days use calendar boundaries and ignore invalid due dates', () => 
   assert.equal(daysPastDue('2026-02-30', today), 0);
   assert.equal(daysPastDue('', today), 0);
 });
+
+
+test('invoice numbering remains unique after imported or non-sequential invoices', async () => {
+  const { nextInvoiceNumber } = await import('../src/domain.js');
+  assert.equal(nextInvoiceNumber([]), 'PK-00001');
+  assert.equal(nextInvoiceNumber([{ number: 'PK-00001' }, { number: 'PK-00007' }, { number: 'CUSTOM' }]), 'PK-00008');
+});

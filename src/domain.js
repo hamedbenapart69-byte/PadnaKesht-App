@@ -77,3 +77,13 @@ export function daysPastDue(dueDate, today = new Date()) {
   const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.max(0, Math.floor((todayUtc - due.getTime()) / 86400000));
 }
+
+export function nextInvoiceNumber(invoices = []) {
+  const max = invoices.reduce((highest, invoice) => {
+    const match = /^PK-(\d+)$/.exec(String(invoice?.number ?? ''));
+    if (!match) return highest;
+    const number = Number(match[1]);
+    return Number.isSafeInteger(number) ? Math.max(highest, number) : highest;
+  }, 0);
+  return 'PK-' + String(max + 1).padStart(5, '0');
+}
