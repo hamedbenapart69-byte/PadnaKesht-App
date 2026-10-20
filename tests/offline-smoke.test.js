@@ -56,5 +56,7 @@ test('overdue receivables alert is wired into the offline dashboard', () => {
 
 
 test('SQLite restore compares snapshots and writes a monotonic timestamp', () => {
-  assert.match(app, /const localTime=Date\.parse\(state\.updatedAt\|\|''\)/);\n  assert.match(app, /state\.updatedAt=new Date\(\)\.toISOString\(\)/);\n  assert.match(app, /sqliteTime>=localTime/);
+  assert.match(app, /const localTime=Date\.parse\(state\.updatedAt\|\|''\)/);
+  assert.match(app, /state\.updatedAt=new Date\(\)\.toISOString\(\)/);
+  assert.match(app, /sqliteTime>=localTime/);
 });
