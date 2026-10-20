@@ -157,3 +157,8 @@ test('accessible dark mode toggle persists a local appearance preference', () =>
   assert.match(app, /localStorage\.setItem\('padnakasht-theme',next\)/);
   assert.match(app, /aria-pressed/);
 });
+
+test('invoice cancellation validates every stock restoration before mutating any product', () => {
+  assert.match(app, /const stockChanges=calculateStockAdjustments\(state\.products,affected,\[\]\);for\(const change of stockChanges\)/);
+  assert.doesNotMatch(app, /for\(const line of affected\)\{const product=state\.products\.find\(p=>p\.id===line\.productId\);if\(product\)product\.stock=validateStockChange\(product\.stock,line\.quantity\);\}/);
+});
