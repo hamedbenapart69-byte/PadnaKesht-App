@@ -1,12 +1,12 @@
 {
   "name": "kimi-offline-android",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "test": "node --test",
+    "test": "node --test tests/offline-smoke.test.js",
     "release:gate": "node tests/release-gate.test.js"
   },
   "dependencies": {
