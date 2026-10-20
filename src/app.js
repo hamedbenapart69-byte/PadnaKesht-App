@@ -53,11 +53,86 @@ async function syncNormalizedTables(db, snapshot){
     await db.commitTransaction();
   }catch(error){try{await db.rollbackTransaction();}catch{}throw error;}
 }
-async function initializeNativeDatabase(){if(!Capacitor.isNativePlatform()){const status=document.getElementById('storageStatus');if(status)status.textContent='حالت مرورگر: ذخیره‌سازی محلی';return null;}try{const sqlite=new SQLiteConnection(CapacitorSQLite);let db;const existing=await sqlite.isConnection('padnakasht',false);if(existing?.result){db=await sqlite.retrieveConnection('padnakasht',false);}else{db=await sqlite.createConnection('padnakasht',false,'no-encryption',1,false);}await db.open();await db.execute('CREATE TABLE IF NOT EXISTS app_state (id INTEGER PRIMARY KEY NOT NULL, payload TEXT NOT NULL)');await db.execute('CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT, address TEXT, notes TEXT, created_at TEXT)');await db.execute('CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, unit TEXT NOT NULL, price_rial INTEGER NOT NULL, stock INTEGER NOT NULL, created_at TEXT)');await db.execute('CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, number TEXT NOT NULL, customer_id TEXT NOT NULL, subtotal_rial INTEGER NOT NULL, discount_rial INTEGER NOT NULL, total_rial INTEGER NOT NULL, paid_rial INTEGER NOT NULL, due_date TEXT, status TEXT NOT NULL, created_at TEXT)');await db.execute('CREATE TABLE IF NOT EXISTS invoice_lines (id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, product_id TEXT NOT NULL, product_name TEXT, unit TEXT, quantity INTEGER NOT NULL, unit_price_rial INTEGER NOT NULL, line_total_rial INTEGER NOT NULL)');await db.execute('CREATE TABLE IF NOT EXISTS payments (id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, amount_rial INTEGER NOT NULL, kind TEXT NOT NULL, created_at TEXT)');await db.execute('CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, text TEXT NOT NULL, created_at TEXT)');await db.execute('CREATE TABLE IF NOT EXISTS audit_log (id TEXT PRIMARY KEY, action TEXT NOT NULL, entity TEXT NOT NULL, entity_id TEXT, detail TEXT, created_at TEXT)');const result=await db.query('SELECT payload FROM app_state WHERE id = 1');const payload=result.values?.[0]?.payload;if(payload){const restored=JSON.parse(payload);if(restored&&restored.version===2){const localTime=Date.parse(state.updatedAt||'');const sqliteTime=Date.parse(restored.updatedAt||'');if(!Number.isFinite(localTime)||Number.isFinite(sqliteTime)&&sqliteTime>=localTime)state={...emptyState(),...restored};}}await syncNormalizedTables(db,JSON.stringify(state));const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';return db;}catch(error){const status=document.getElementById('storageStatus');if(status)status.textContent='هشدار: SQLite در دسترس نیست؛ ذخیره‌سازی جایگزین مرورگر فعال است.';console.error('SQLite initialization failed',error);return null;}}
+async function initializeNativeDatabase(){
+  if(!Capacitor.isNativePlatform()){
+    const status=document.getElementById('storageStatus');
+    if(status)status.textContent='حالت مرورگر: ذخیره‌سازی محلی؛ برای حفاظت بیشتر از اطلاعات پشتیبان بگیرید.';
+    return null;
+  }
+  const sqlite=new SQLiteConnection(CapacitorSQLite);
+  let db=null;
+  const databaseName='padnakasht';
+  const makeSecret=()=>{
+    if(!globalThis.crypto?.getRandomValues)throw new Error('مولد امن کلید در این دستگاه در دسترس نیست.');
+    const bytes=new Uint8Array(32);globalThis.crypto.getRandomValues(bytes);
+    return [...bytes].map(value=>value.toString(16).padStart(2,'0')).join('');
+  };
+  const openConnection=async(encrypted,mode)=>{
+    const exists=await sqlite.isConnection(databaseName,false);
+    const connection=exists?.result
+      ? await sqlite.retrieveConnection(databaseName,false)
+      : await sqlite.createConnection(databaseName,encrypted,mode,1,false);
+    await connection.open();
+    return connection;
+  };
+  try{
+    const hasDatabase=(await sqlite.isDatabase(databaseName)).result;
+    const secretStored=(await sqlite.isSecretStored()).result;
+    const encrypted=hasDatabase?(await sqlite.isDatabaseEncrypted(databaseName)).result:false;
+    if(hasDatabase&&encrypted&&!secretStored){
+      throw new Error('کلید پایگاه دادهٔ رمزگذاری‌شده در فضای امن پیدا نشد؛ برای جلوگیری از آسیب به اطلاعات، کلید جدید ساخته نشد.');
+    }
+    if(hasDatabase&&!encrypted){
+      // Preserve existing plaintext DB content before encrypting it in place.
+      const legacy=await openConnection(false,'no-encryption');
+      await legacy.query('SELECT name FROM sqlite_master WHERE type = ?',['table']);
+      await sqlite.closeConnection(databaseName,false);
+      if(!secretStored)await sqlite.setEncryptionSecret(makeSecret());
+      db=await openConnection(true,'encryption');
+    }else{
+      if(!secretStored)await sqlite.setEncryptionSecret(makeSecret());
+      db=await openConnection(true,'secret');
+    }
+    const schema=[
+      'CREATE TABLE IF NOT EXISTS app_state (id INTEGER PRIMARY KEY NOT NULL, payload TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT, address TEXT, notes TEXT, created_at TEXT)',
+      'CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, unit TEXT NOT NULL, price_rial INTEGER NOT NULL, stock INTEGER NOT NULL, created_at TEXT)',
+      'CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, number TEXT NOT NULL, customer_id TEXT NOT NULL, subtotal_rial INTEGER NOT NULL, discount_rial INTEGER NOT NULL, total_rial INTEGER NOT NULL, paid_rial INTEGER NOT NULL, due_date TEXT, status TEXT NOT NULL, created_at TEXT)',
+      'CREATE TABLE IF NOT EXISTS invoice_lines (id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, product_id TEXT NOT NULL, product_name TEXT, unit TEXT, quantity INTEGER NOT NULL, unit_price_rial INTEGER NOT NULL, line_total_rial INTEGER NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS payments (id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, amount_rial INTEGER NOT NULL, kind TEXT NOT NULL, created_at TEXT)',
+      'CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, text TEXT NOT NULL, created_at TEXT)',
+      'CREATE TABLE IF NOT EXISTS audit_log (id TEXT PRIMARY KEY, action TEXT NOT NULL, entity TEXT NOT NULL, entity_id TEXT, detail TEXT, created_at TEXT)'
+    ];
+    for(const statement of schema)await db.execute(statement);
+    const result=await db.query('SELECT payload FROM app_state WHERE id = 1');
+    const payload=result.values?.[0]?.payload;
+    if(payload){
+      const restored=JSON.parse(payload);
+      if(restored&&restored.version===2){
+        const localTime=Date.parse(state.updatedAt||'');
+        const sqliteTime=Date.parse(restored.updatedAt||'');
+        if(!Number.isFinite(localTime)||Number.isFinite(sqliteTime)&&sqliteTime>=localTime)state={...emptyState(),...restored};
+      }
+    }
+    await syncNormalizedTables(db,JSON.stringify(state));
+    const verified=(await sqlite.isDatabaseEncrypted(databaseName)).result;
+    if(!verified)throw new Error('بررسی نهایی رمزگذاری پایگاه داده ناموفق بود.');
+    try{localStorage.removeItem(KEY);}catch{}
+    const status=document.getElementById('storageStatus');
+    if(status)status.textContent='ذخیره‌سازی اصلی: SQLite رمزگذاری‌شده؛ کلید در فضای امن Android نگهداری می‌شود.';
+    return db;
+  }catch(error){
+    if(db){try{await sqlite.closeConnection(databaseName,false);}catch{}}
+    const status=document.getElementById('storageStatus');
+    if(status)status.textContent='خطای امنیت ذخیره‌سازی: پایگاه دادهٔ رمزگذاری‌شده آماده نشد؛ ثبت اطلاعات مسدود است.';
+    console.error('Encrypted SQLite initialization failed',error);
+    return null;
+  }
+}
 nativeDB = await initializeNativeDatabase();
-if(nativeDB){try{localStorage.setItem(KEY,JSON.stringify(state));}catch{}}
+if(nativeDB){try{localStorage.removeItem(KEY);}catch{}}
 function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.version===2)return {...emptyState(),...x};}catch{}const fresh=emptyState();try{const old=JSON.parse(localStorage.getItem('kimi-offline-v1')||'null');if(old&&Array.isArray(old.records)){fresh.legacyRecords=old.records.filter(r=>r&&typeof r==='object');fresh.notes=(Array.isArray(old.notes)?old.notes:[]).filter(n=>n&&typeof n==='object').map(n=>({id:String(n.id||uid()),text:String(n.text||''),createdAt:n.created||new Date().toISOString()}));fresh.audit.push({id:uid(),action:'legacy-migration',entity:'backup',entityId:'kimi-offline-v1',at:new Date().toISOString()});} }catch{}return fresh;}
-function persist(options={}){state.updatedAt=new Date().toISOString();const snapshot=JSON.stringify(state);try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی جایگزین ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>syncNormalizedTables(nativeDB,snapshot)).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه داده SQLite. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}if(!document.querySelector('.invoice-line'))addInvoiceLine();
+function persist(options={}){state.updatedAt=new Date().toISOString();const snapshot=JSON.stringify(state);if(Capacitor.isNativePlatform()&&!nativeDB){alert('ذخیره‌سازی امن SQLite در دسترس نیست؛ ثبت اطلاعات مسدود شد تا از ذخیرهٔ بدون رمزگذاری جلوگیری شود.');throw new Error('Encrypted SQLite unavailable');}if(!Capacitor.isNativePlatform()){try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی محلی ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>syncNormalizedTables(nativeDB,snapshot)).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: SQLite رمزگذاری‌شده';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی امن SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه دادهٔ رمزگذاری‌شده. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}if(!document.querySelector('.invoice-line'))addInvoiceLine();
 render();if(!options.skipNotificationSync)void syncOverdueNotifications();}
 
 async function performNotificationSync(requestPermission=false){

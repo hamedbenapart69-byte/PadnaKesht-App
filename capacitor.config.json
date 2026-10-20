@@ -2,5 +2,10 @@
   "appId": "com.padnakasht.kimi",
   "appName": "پادناکِشت",
   "webDir": "dist",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "plugins": {
+    "CapacitorSQLite": {
+      "androidIsEncryption": true
+    }
+  }
 }

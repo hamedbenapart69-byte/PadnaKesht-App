@@ -20,6 +20,10 @@ test('business modules and backup controls exist', () => {
   assert.match(app, /padnakasht-backup/);
   assert.match(app, /SQLiteConnection/);
   assert.match(app, /CREATE TABLE IF NOT EXISTS app_state/);
+  assert.match(app, /Encrypted SQLite initialization failed/);
+  assert.match(app, /setEncryptionSecret\(makeSecret\(\)\)/);
+  assert.match(app, /localStorage\.removeItem\(KEY\)/);
+  assert.match(app, /CapacitorSQLite:\{[^}]*androidIsEncryption:true/);
   for (const table of ['customers','products','invoices','invoice_lines','payments','notes','audit_log']) assert.ok(app.includes('CREATE TABLE IF NOT EXISTS ' + table), 'missing SQLite table ' + table);
   assert.match(app, /function csvCell/);
   assert.match(backup, /export function validBackupRecord/);
