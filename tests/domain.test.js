@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange } from '../src/domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits } from '../src/domain.js';
+
+test('Persian and Arabic numerals normalize to ASCII digits', () => { assert.equal(normalizeDigits('۰۹۱۲٣٤'), '091234'); });
 
 test('customer requires a name and rejects duplicate normalized name or phone', () => {
   assert.throws(() => validateCustomer({ name: ' ' }), /نام مشتری/);
