@@ -24,6 +24,8 @@ jobs:
         run: npm install
       - name: Run smoke tests
         run: npm test
+      - name: Block release until acceptance and review gates pass
+        run: npm run release:gate
       - name: Build web assets
         run: npm run build
       - name: Generate Android project
