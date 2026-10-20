@@ -5,7 +5,8 @@ import { validateCustomer, calculateInvoice, applyPayment, validateStockChange }
 test('customer requires a name and rejects duplicate normalized name or phone', () => {
   assert.throws(() => validateCustomer({ name: ' ' }), /نام مشتری/);
   const existing = [{ name: 'آقای مقصودی', phone: '09121234567' }];
-  assert.throws(() => validateCustomer({ name: 'مشتری دیگر', phone: '09121234567' }, existing), /تکراری/);
+  assert.throws(() => validateCustomer({ name: 'مشتری دیگر', phone: '۰۹۱۲۱۲۳۴۵۶۷' }, existing), /تکراری/);
+  assert.throws(() => validateCustomer({ name: 'نام متفاوت', phone: '09121234567' }, existing), /تکراری/);
   assert.equal(validateCustomer({ name: '  سارا   احمدی ', phone: '' }).name, 'سارا احمدی');
 });
 
