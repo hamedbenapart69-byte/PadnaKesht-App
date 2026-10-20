@@ -62,3 +62,18 @@ export function validateStockChange(currentStock, delta) {
   if (nextStock < 0) throw new Error('موجودی برای این عملیات کافی نیست.');
   return nextStock;
 }
+
+/**
+ * Return whole calendar days past an ISO YYYY-MM-DD due date.
+ * A due date is overdue only after the date has ended; today returns 0.
+ */
+export function daysPastDue(dueDate, today = new Date()) {
+  if (typeof dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return 0;
+  const [year, month, day] = dueDate.split('-').map(Number);
+  const due = new Date(Date.UTC(year, month - 1, day));
+  if (due.getUTCFullYear() !== year || due.getUTCMonth() !== month - 1 || due.getUTCDate() !== day) return 0;
+  const now = new Date(today);
+  if (Number.isNaN(now.getTime())) return 0;
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.max(0, Math.floor((todayUtc - due.getTime()) / 86400000));
+}
