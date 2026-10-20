@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const backup = readFileSync(new URL('../src/backup.js', import.meta.url), 'utf8');
+const config = readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8');
 const xlsx = readFileSync(new URL('../src/xlsx.js', import.meta.url), 'utf8');
 test('app shell is Persian and right-to-left', () => {
   assert.match(html, /<html lang="fa" dir="rtl">/);
@@ -23,7 +24,7 @@ test('business modules and backup controls exist', () => {
   assert.match(app, /Encrypted SQLite initialization failed/);
   assert.match(app, /setEncryptionSecret\(makeSecret\(\)\)/);
   assert.match(app, /localStorage\.removeItem\(KEY\)/);
-  assert.match(app, /CapacitorSQLite:\{[^}]*androidIsEncryption:true/);
+  assert.match(config, /\"androidIsEncryption\"\s*:\s*true/);
   for (const table of ['customers','products','invoices','invoice_lines','payments','notes','audit_log']) assert.ok(app.includes('CREATE TABLE IF NOT EXISTS ' + table), 'missing SQLite table ' + table);
   assert.match(app, /function csvCell/);
   assert.match(backup, /export function validBackupRecord/);
