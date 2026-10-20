@@ -50,7 +50,8 @@ jobs:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
       - name: Prepare Capacitor Android
         run: |
-          if [ ! -f android/gradlew ]; then
+          # Never reuse a stale Flutter/native Android project for this Capacitor app.
+          if [ ! -f android/gradlew ] || grep -q 'dev.flutter.flutter-gradle-plugin' android/app/build.gradle 2>/dev/null; then
             rm -rf android
             npx cap add android
           fi
