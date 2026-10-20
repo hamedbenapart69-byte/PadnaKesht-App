@@ -94,7 +94,7 @@ test('local overdue notifications are offline and permission-gated', () => {
 test('native persistence waits for SQLite commit before confirming a mutation', () => {
   assert.match(app, /return write\.then\(\(\)=>/);
   assert.match(app, /await persist\(\);alert\('فاکتور '/);
-  assert.match(app, /addEventListener\('submit',async e=>/);
+  assert.match(app, /guardedSubmit\('invoiceForm',async e=>/);
 });
 
 test('local PIN gate is present, keeps authentication offline, and excludes credentials from backup exports', () => {
