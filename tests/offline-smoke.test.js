@@ -106,3 +106,11 @@ test('local PIN gate is present, keeps authentication offline, and excludes cred
   assert.match(app, /document\.addEventListener\('visibilitychange'/);
   assert.match(app, /auth-locked/);
 });
+
+test('business forms guard against duplicate submissions while async persistence is pending', () => {
+  assert.match(app, /function guardedSubmit\(formId,handler\)/);
+  assert.match(app, /if\(running\)\{event\.preventDefault\(\);return;\}/);
+  for (const formId of ['customerForm','productForm','invoiceForm','paymentForm','noteForm']) {
+    assert.ok(app.includes("guardedSubmit('" + formId + "',async e=>{"), 'missing duplicate-submit guard for ' + formId);
+  }
+});
