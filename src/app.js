@@ -1,6 +1,24 @@
 import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeText } from './domain.js';
 
 const KEY = 'padnakasht-local-v2';
+const customerName = document.getElementById('customerName');
+const customerPhone = document.getElementById('customerPhone');
+const customerAddress = document.getElementById('customerAddress');
+const customerNotes = document.getElementById('customerNotes');
+const customerSearch = document.getElementById('customerSearch');
+const productName = document.getElementById('productName');
+const productUnit = document.getElementById('productUnit');
+const productPrice = document.getElementById('productPrice');
+const productStock = document.getElementById('productStock');
+const invoiceCustomer = document.getElementById('invoiceCustomer');
+const invoiceDiscount = document.getElementById('invoiceDiscount');
+const invoicePaid = document.getElementById('invoicePaid');
+const invoiceDue = document.getElementById('invoiceDue');
+const paymentInvoice = document.getElementById('paymentInvoice');
+const paymentAmount = document.getElementById('paymentAmount');
+const noteText = document.getElementById('noteText');
+const importFile = document.getElementById('importFile');
+
 const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:[],audit:[]});
 let state = loadState();
 function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.version===2)return {...emptyState(),...x};}catch{}return emptyState();}
