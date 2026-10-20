@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "test": "node --test tests/domain.test.js tests/backup.test.js tests/offline-smoke.test.js tests/smoke.test.js",
+    "test": "node --test tests/domain.test.js tests/backup.test.js tests/notifications.test.js tests/offline-smoke.test.js tests/smoke.test.js",
     "release:gate": "node tests/release-gate.test.js"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
     "@capacitor/core": "^6.2.1",
-    "@capacitor-community/sqlite": "^6.0.2"
+    "@capacitor-community/sqlite": "^6.0.2",
+    "@capacitor/local-notifications": "^6.0.4"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.1",

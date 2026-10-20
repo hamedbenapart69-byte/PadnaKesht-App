@@ -78,3 +78,10 @@ test('invoice editing preserves existing payments and exposes explicit cancel ac
   assert.match(app, /invoicePaid\.disabled=true/);
   assert.match(app, /calculateStockAdjustments\(state\.products,oldLines,calc\.lines\)/);
 });
+
+test('local overdue notifications are offline and permission-gated', () => {
+  assert.match(app, /@capacitor\/local-notifications/);
+  assert.match(app, /LocalNotifications\.requestPermissions\(\)/);
+  assert.match(app, /data-enable-overdue-notifications/);
+  assert.match(app, /buildOverdueNotificationPlan\(state\.invoices,state\.customers/);
+});

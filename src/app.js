@@ -1,5 +1,7 @@
 import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, calculateStockAdjustments, normalizeText, normalizeDigits, daysPastDue, nextInvoiceNumber } from './domain.js';
 import { validateBackupPayload } from './backup.js';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { buildOverdueNotificationPlan } from './notifications.js';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
@@ -24,9 +26,10 @@ const paymentAmount = document.getElementById('paymentAmount');
 const noteText = document.getElementById('noteText');
 const importFile = document.getElementById('importFile');
 
-const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:[],audit:[],legacyRecords:[]});
+const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:[],audit:[],legacyRecords:[],notificationsEnabled:false});
 let nativeDB = null;
 let nativeWriteQueue = Promise.resolve();
+let notificationSyncQueue = Promise.resolve(false);
 let state = loadState();
 let invoiceEditId = '';
 async function syncNormalizedTables(db, snapshot){
@@ -53,8 +56,32 @@ async function initializeNativeDatabase(){if(!Capacitor.isNativePlatform()){cons
 nativeDB = await initializeNativeDatabase();
 if(nativeDB){try{localStorage.setItem(KEY,JSON.stringify(state));}catch{}}
 function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.version===2)return {...emptyState(),...x};}catch{}const fresh=emptyState();try{const old=JSON.parse(localStorage.getItem('kimi-offline-v1')||'null');if(old&&Array.isArray(old.records)){fresh.legacyRecords=old.records.filter(r=>r&&typeof r==='object');fresh.notes=(Array.isArray(old.notes)?old.notes:[]).filter(n=>n&&typeof n==='object').map(n=>({id:String(n.id||uid()),text:String(n.text||''),createdAt:n.created||new Date().toISOString()}));fresh.audit.push({id:uid(),action:'legacy-migration',entity:'backup',entityId:'kimi-offline-v1',at:new Date().toISOString()});} }catch{}return fresh;}
-function persist(){state.updatedAt=new Date().toISOString();const snapshot=JSON.stringify(state);try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی جایگزین ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>syncNormalizedTables(nativeDB,snapshot)).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه داده SQLite. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}if(!document.querySelector('.invoice-line'))addInvoiceLine();
-render();}
+function persist(options={}){state.updatedAt=new Date().toISOString();const snapshot=JSON.stringify(state);try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی جایگزین ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>syncNormalizedTables(nativeDB,snapshot)).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: پایگاه داده SQLite محلی';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه داده SQLite. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}if(!document.querySelector('.invoice-line'))addInvoiceLine();
+render();if(!options.skipNotificationSync)void syncOverdueNotifications();}
+
+async function performNotificationSync(requestPermission=false){
+  if(!Capacitor.isNativePlatform())return false;
+  const pending=await LocalNotifications.getPending();
+  const owned=(pending.notifications||[]).filter(item=>item.extra?.padnakashtOverdue===true);
+  if(owned.length)await LocalNotifications.cancel({notifications:owned.map(item=>({id:item.id}))});
+  if(!state.notificationsEnabled&&!requestPermission)return false;
+  let permission=await LocalNotifications.checkPermissions();
+  if(permission.display!=='granted'&&requestPermission)permission=await LocalNotifications.requestPermissions();
+  if(permission.display!=='granted'){state.notificationsEnabled=false;return false;}
+  state.notificationsEnabled=true;
+  const notifications=buildOverdueNotificationPlan(state.invoices,state.customers,new Date());
+  if(notifications.length)await LocalNotifications.schedule({notifications});
+  return true;
+}
+function syncOverdueNotifications(requestPermission=false){
+  if(!Capacitor.isNativePlatform()||(!state.notificationsEnabled&&!requestPermission))return Promise.resolve(false);
+  notificationSyncQueue=notificationSyncQueue.catch(()=>false).then(()=>performNotificationSync(requestPermission)).catch(error=>{
+    state.notificationsEnabled=false;
+    console.error('Local overdue notification sync failed',error);
+    return false;
+  });
+  return notificationSyncQueue;
+}
 function uid(){return globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function num(v){const n=Number(normalizeDigits(v));if(!Number.isSafeInteger(n)||n<0)throw new Error('مبلغ و تعداد باید عدد صحیح نامنفی باشند.');return n}
@@ -83,7 +110,7 @@ function addInvoiceLine(productId='',quantity=1){
 }
 function render(){const activeInvoices=state.invoices.filter(i=>i.status!=='cancelled');const unpaid=activeInvoices.reduce((s,i)=>s+Math.max(0,i.totalRial-i.paidRial),0);const sales=activeInvoices.reduce((s,i)=>s+i.totalRial,0);const overdueInvoices=activeInvoices.filter(i=>i.dueDate&&daysPastDue(i.dueDate)>30&&i.paidRial<i.totalRial);const overdueAmount=overdueInvoices.reduce((sum,i)=>sum+Math.max(0,i.totalRial-i.paidRial),0);
 document.getElementById('summary').innerHTML=[['مشتریان',state.customers.length],['محصولات',state.products.length],['فاکتورها',state.invoices.length],['فروش ثبت‌شده',money(sales)],['مانده مطالبات',money(unpaid)],['مطالبات بیش از ۳۰ روز',money(overdueAmount)]].map(x=>'<div class="stat"><small>'+esc(x[0])+'</small><strong>'+esc(typeof x[1]==='number'?x[1].toLocaleString('fa-IR'):x[1])+'</strong></div>').join('');
-document.getElementById('overview').innerHTML='آمار از داده‌های ثبت‌شده در همین دستگاه محاسبه می‌شود.'+(overdueInvoices.length?'<div role="alert" style="margin-top:12px;padding:12px;border-radius:10px;background:#fff0e8;color:#7b3217"><strong>هشدار مطالبات معوق بیش از ۳۰ روز</strong><p>تعداد '+overdueInvoices.length.toLocaleString('fa-IR')+' فاکتور · مانده '+esc(money(overdueAmount))+'</p>'+table(['فاکتور','مشتری','روز تأخیر','مانده'],overdueInvoices.map(i=>[i.number,state.customers.find(c=>c.id===i.customerId)?.name||'—',daysPastDue(i.dueDate).toLocaleString('fa-IR'),money(i.totalRial-i.paidRial)]))+'</div>':'<p class="hint">در حال حاضر فاکتور پرداخت‌نشده‌ای با بیش از ۳۰ روز تأخیر وجود ندارد.</p>');
+document.getElementById('overview').innerHTML='آمار از داده‌های ثبت‌شده در همین دستگاه محاسبه می‌شود. <button type="button" class="btn" data-enable-overdue-notifications>'+(state.notificationsEnabled?'به‌روزرسانی اعلان‌های مطالبات':'فعال‌سازی اعلان‌های مطالبات')+'</button>'+(overdueInvoices.length?'<div role="alert" style="margin-top:12px;padding:12px;border-radius:10px;background:#fff0e8;color:#7b3217"><strong>هشدار مطالبات معوق بیش از ۳۰ روز</strong><p>تعداد '+overdueInvoices.length.toLocaleString('fa-IR')+' فاکتور · مانده '+esc(money(overdueAmount))+'</p>'+table(['فاکتور','مشتری','روز تأخیر','مانده'],overdueInvoices.map(i=>[i.number,state.customers.find(c=>c.id===i.customerId)?.name||'—',daysPastDue(i.dueDate).toLocaleString('fa-IR'),money(i.totalRial-i.paidRial)]))+'</div>':'<p class="hint">در حال حاضر فاکتور پرداخت‌نشده‌ای با بیش از ۳۰ روز تأخیر وجود ندارد.</p>');
 document.getElementById('customerList').innerHTML=table(['نام','تماس','نشانی','عملیات'],state.customers.filter(c=>(c.name+' '+c.phone+' '+c.address).includes(document.getElementById('customerSearch').value.trim())).map(c=>[c.name,c.phone||'—',c.address||'—',{html:'<button class="btn" data-customer-edit="'+esc(c.id)+'">ویرایش</button> <button class="btn danger" data-customer-delete="'+esc(c.id)+'">حذف</button>'}]));
 document.getElementById('productList').innerHTML=table(['محصول','واحد','قیمت (ریال)','موجودی','عملیات'],state.products.map(p=>[p.name,p.unit,money(p.priceRial),String(p.stock),{html:'<button class="btn" data-product-edit="'+esc(p.id)+'">ویرایش</button> <button class="btn" data-product-price="'+esc(p.id)+'">تغییر قیمت</button> <button class="btn" data-product-stock="'+esc(p.id)+'">افزودن موجودی</button> <button class="btn" data-product-history="'+esc(p.id)+'">سوابق</button> <button class="btn danger" data-product-delete="'+esc(p.id)+'">حذف</button>'}]));
 document.getElementById('invoiceCustomer').innerHTML=options(state.customers,'انتخاب مشتری');refreshInvoiceLineOptions();
@@ -139,6 +166,16 @@ invoiceEditId='';e.target.reset();invoicePaid.disabled=false;document.getElement
 document.getElementById('cancelInvoiceEdit').addEventListener('click',()=>{invoiceEditId='';document.getElementById('invoiceForm').reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';});
 document.getElementById('paymentForm').addEventListener('submit',e=>{e.preventDefault();try{const invoice=state.invoices.find(i=>i.id===paymentInvoice.value);if(!invoice||invoice.status==='cancelled')throw Error('فاکتور معتبر انتخاب کنید.');const amount=num(paymentAmount.value);if(!Array.isArray(invoice.payments)){invoice.payments=[];if(invoice.paidRial>0)invoice.payments.push({id:uid(),amountRial:invoice.paidRial,at:invoice.createdAt||new Date().toISOString(),kind:'opening-balance-migration'});}const result=applyPayment({totalRial:invoice.totalRial},invoice.payments,amount);invoice.payments.push({id:uid(),amountRial:amount,at:new Date().toISOString(),kind:'partial'});invoice.paidRial=result.paidRial;audit('payment','invoice',invoice.id,money(amount));persist();e.target.reset();alert('دریافت ثبت شد. مانده: '+money(result.remainingRial));}catch(err){alert(err.message||'ثبت دریافت ناموفق بود.')}});
 document.addEventListener('click',e=>{
+const notificationButton=e.target.closest('[data-enable-overdue-notifications]');
+if(notificationButton){
+  if(!Capacitor.isNativePlatform()){alert('اعلان‌های سیستمی فقط در نسخهٔ نصب‌شدهٔ اندروید در دسترس هستند.');return;}
+  state.notificationsEnabled=true;persist({skipNotificationSync:true});
+  void syncOverdueNotifications(true).then(enabled=>{
+    state.notificationsEnabled=enabled;
+    persist({skipNotificationSync:true});
+    alert(enabled?'اعلان‌های محلی مطالبات فعال شد.':'اجازهٔ اعلان داده نشد یا زمان‌بندی اعلان‌ها ناموفق بود.');
+  });
+}
 const invoiceEditButton=e.target.closest('[data-invoice-edit]');
 if(invoiceEditButton){
   const item=state.invoices.find(invoice=>invoice.id===invoiceEditButton.dataset.invoiceEdit);
@@ -189,3 +226,4 @@ document.getElementById('exportExcel').onclick=()=>{const sheets=[
 document.getElementById('print').onclick=()=>window.print();
 document.getElementById('clearAll').onclick=()=>{if(confirm('همه اطلاعات این دستگاه برای همیشه حذف شود؟ ابتدا پشتیبان بگیرید.')){state=emptyState();persist();}};
 render();
+if(state.notificationsEnabled)void syncOverdueNotifications();
