@@ -132,3 +132,21 @@ test('dashboard uses modern visual hierarchy and data-driven insights without fa
   assert.match(app, /اطلاعات قبلی در این نصب پیدا نشد/);
   assert.match(app, /restoreFromDashboard/);
 });
+
+test('modern dashboard shows real-data insights and a recovery path without seeding fake customer accounts', () => {
+  assert.match(html, /class="hero"/);
+  assert.match(html, /id="dashboardInsights"/);
+  assert.match(html, /class="dashboard-grid"/);
+  assert.match(html, /data-restore-open/);
+  assert.match(app, /مشتری یا فاکتور نمونه اضافه نشده است/);
+  assert.match(app, /data-restore-open/);
+  assert.match(app, /restoreFromDashboard/);
+  assert.match(app, /data-start-customer/);
+});
+
+test('Capacitor CLI tar compatibility shim fails closed on unknown upstream source shape', () => {
+  const shim = readFileSync(new URL('../scripts/patch-capacitor-cli-tar.mjs', import.meta.url), 'utf8');
+  assert.match(shim, /tar_1\.default/);
+  assert.match(shim, /Unknown Capacitor CLI tar import shape/);
+  assert.match(readFileSync(new URL('../package.json', import.meta.url), 'utf8'), /"tar": "\^7\.5\.22"/);
+});
