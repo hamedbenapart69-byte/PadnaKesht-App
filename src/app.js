@@ -130,6 +130,7 @@ async function initializeNativeDatabase(){
   }
 }
 nativeDB = await initializeNativeDatabase();
+let lastCommittedSnapshot = JSON.stringify(state);
 if(nativeDB){try{localStorage.removeItem(KEY);}catch{}}
 function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.version===2)return {...emptyState(),...x};}catch{}const fresh=emptyState();try{const old=JSON.parse(localStorage.getItem('kimi-offline-v1')||'null');if(old&&Array.isArray(old.records)){fresh.legacyRecords=old.records.filter(r=>r&&typeof r==='object');fresh.notes=(Array.isArray(old.notes)?old.notes:[]).filter(n=>n&&typeof n==='object').map(n=>({id:String(n.id||uid()),text:String(n.text||''),createdAt:n.created||new Date().toISOString()}));fresh.audit.push({id:uid(),action:'legacy-migration',entity:'backup',entityId:'kimi-offline-v1',at:new Date().toISOString()});} }catch{}return fresh;}
 function persist(options={}){
@@ -140,8 +141,8 @@ function persist(options={}){
     throw new Error('Encrypted SQLite unavailable');
   }
   if(!Capacitor.isNativePlatform()){
-    try{localStorage.setItem(KEY,snapshot);}
-    catch(error){alert('ذخیره‌سازی محلی ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw error;}
+    try{localStorage.setItem(KEY,snapshot);lastCommittedSnapshot=snapshot;}
+    catch(error){try{state=JSON.parse(lastCommittedSnapshot);render();}catch{}alert('ذخیره‌سازی محلی ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw error;}
     if(!document.querySelector('.invoice-line'))addInvoiceLine();
     render();
     if(!options.skipNotificationSync)void syncOverdueNotifications();
@@ -152,6 +153,7 @@ function persist(options={}){
   return write.then(()=>{
     const status=document.getElementById('storageStatus');
     if(status)status.textContent='ذخیره‌سازی اصلی: SQLite رمزگذاری‌شده';
+    lastCommittedSnapshot=snapshot;
     if(!document.querySelector('.invoice-line'))addInvoiceLine();
     render();
     if(!options.skipNotificationSync)void syncOverdueNotifications();
@@ -159,6 +161,7 @@ function persist(options={}){
   }).catch(error=>{
     const status=document.getElementById('storageStatus');
     if(status)status.textContent='خطا: ذخیره‌سازی امن SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';
+    try{state=JSON.parse(lastCommittedSnapshot);if(!document.querySelector('.invoice-line'))addInvoiceLine();render();}catch{}
     console.error('SQLite write failed',error);
     alert('خطا در نوشتن پایگاه دادهٔ رمزگذاری‌شده. تغییرات ذخیره‌شده تأیید نشدند؛ پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');
     throw error;
@@ -270,7 +273,7 @@ if(existingInvoice){
 invoiceEditId='';e.target.reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';
 }catch(err){alert(err.message||'ثبت یا ویرایش فاکتور ناموفق بود.')}});
 document.getElementById('cancelInvoiceEdit').addEventListener('click',()=>{invoiceEditId='';document.getElementById('invoiceForm').reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';});
-document.getElementById('paymentForm').addEventListener('submit',async e=>{e.preventDefault();try{const invoice=state.invoices.find(i=>i.id===paymentInvoice.value);if(!invoice||invoice.status==='cancelled')throw Error('فاکتور معتبر انتخاب کنید.');const amount=num(paymentAmount.value);if(!Array.isArray(invoice.payments)){invoice.payments=[];if(invoice.paidRial>0)invoice.payments.push({id:uid(),amountRial:invoice.paidRial,at:invoice.createdAt||new Date().toISOString(),kind:'opening-balance-migration'});}const result=applyPayment({totalRial:invoice.totalRial},invoice.payments,amount);invoice.payments.push({id:uid(),amountRial:amount,at:new Date().toISOString(),kind:'partial'});invoice.paidRial=result.paidRial;audit('payment','invoice',invoice.id,money(amount));await await persist();e.target.reset();alert('دریافت ثبت شد. مانده: '+money(result.remainingRial));}catch(err){alert(err.message||'ثبت دریافت ناموفق بود.')}});
+document.getElementById('paymentForm').addEventListener('submit',async e=>{e.preventDefault();try{const invoice=state.invoices.find(i=>i.id===paymentInvoice.value);if(!invoice||invoice.status==='cancelled')throw Error('فاکتور معتبر انتخاب کنید.');const amount=num(paymentAmount.value);if(!Array.isArray(invoice.payments)){invoice.payments=[];if(invoice.paidRial>0)invoice.payments.push({id:uid(),amountRial:invoice.paidRial,at:invoice.createdAt||new Date().toISOString(),kind:'opening-balance-migration'});}const result=applyPayment({totalRial:invoice.totalRial},invoice.payments,amount);invoice.payments.push({id:uid(),amountRial:amount,at:new Date().toISOString(),kind:'partial'});invoice.paidRial=result.paidRial;audit('payment','invoice',invoice.id,money(amount));await persist();e.target.reset();alert('دریافت ثبت شد. مانده: '+money(result.remainingRial));}catch(err){alert(err.message||'ثبت دریافت ناموفق بود.')}});
 document.addEventListener('click',async e=>{
 const notificationButton=e.target.closest('[data-enable-overdue-notifications]');
 if(notificationButton){
