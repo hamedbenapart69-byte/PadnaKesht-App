@@ -149,3 +149,11 @@ test('Capacitor CLI tar compatibility shim fails closed on unknown upstream sour
   assert.match(shim, /Unknown Capacitor CLI tar import shape/);
   assert.match(readFileSync(new URL('../package.json', import.meta.url), 'utf8'), /"tar": "\^7\.5\.22"/);
 });
+
+test('accessible dark mode toggle persists a local appearance preference', () => {
+  assert.match(html, /id="themeToggle"/);
+  assert.match(html, /data-theme="dark"/);
+  assert.match(app, /localStorage\.getItem\('padnakasht-theme'\)/);
+  assert.match(app, /localStorage\.setItem\('padnakasht-theme',next\)/);
+  assert.match(app, /aria-pressed/);
+});
