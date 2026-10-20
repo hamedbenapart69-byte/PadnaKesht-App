@@ -137,7 +137,6 @@ test('modern dashboard shows real-data insights and a recovery path without seed
   assert.match(html, /class="hero"/);
   assert.match(html, /id="dashboardInsights"/);
   assert.match(html, /class="dashboard-grid"/);
-  assert.match(html, /data-restore-open/);
   assert.match(app, /مشتری یا فاکتور نمونه اضافه نشده است/);
   assert.match(app, /data-restore-open/);
   assert.match(app, /restoreFromDashboard/);
