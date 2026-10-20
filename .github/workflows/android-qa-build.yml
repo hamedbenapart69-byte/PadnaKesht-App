@@ -1,0 +1,73 @@
+name: PadnaKesht Android QA Candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: [kimi-android]
+    paths:
+      - 'index.html'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.*'
+      - 'vite.config.js'
+      - 'tests/**'
+      - '.github/workflows/android-qa-build.yml'
+permissions:
+  contents: read
+concurrency:
+  group: padnakasht-qa-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build-qa-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout dedicated branch
+        uses: actions/checkout@v4
+        with:
+          ref: kimi-android
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install
+      - name: Run automated tests
+        run: npm test
+      - name: Build offline web assets
+        run: npm run build
+      - name: Verify offline bundle
+        run: test -s dist/index.html
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Prepare Capacitor Android
+        run: |
+          if [ ! -f android/gradlew ]; then
+            rm -rf android
+            npx cap add android
+          fi
+          npx cap sync android
+          test -f android/gradlew
+          test -s android/app/src/main/assets/public/index.html
+      - name: Assemble QA candidate APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug
+      - name: Verify and checksum QA candidate
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          sha256sum "$APK" | tee apk-sha256.txt
+      - name: Upload QA candidate only (not production-approved)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadnaKesht-QA-Candidate-not-production-approved
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
