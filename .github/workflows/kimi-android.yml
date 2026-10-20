@@ -35,6 +35,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install dependencies
         run: npm install
@@ -57,9 +58,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Add and synchronize Capacitor Android
+      - name: Prepare Capacitor Android project
         run: |
-          npx cap add android
+          if [ ! -f android/gradlew ]; then
+            rm -rf android
+            npx cap add android
+          fi
           npx cap sync android
           test -f android/gradlew
           test -s android/app/src/main/assets/public/index.html
