@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       - name: Run automated tests
         run: npm test
       - name: Build offline web assets
