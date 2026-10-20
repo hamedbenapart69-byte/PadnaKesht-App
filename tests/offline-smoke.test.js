@@ -162,3 +162,8 @@ test('invoice cancellation validates every stock restoration before mutating any
   assert.match(app, /const stockChanges=calculateStockAdjustments\(state\.products,affected,\[\]\);for\(const change of stockChanges\)/);
   assert.doesNotMatch(app, /for\(const line of affected\)\{const product=state\.products\.find\(p=>p\.id===line\.productId\);if\(product\)product\.stock=validateStockChange\(product\.stock,line\.quantity\);\}/);
 });
+
+test('active TypeScript Capacitor config enables Android SQLite encryption', () => {
+  const config = readFileSync(new URL('../capacitor.config.ts', import.meta.url), 'utf8');
+  assert.match(config, /plugins\s*:\s*\{[\s\S]*CapacitorSQLite\s*:\s*\{[\s\S]*androidIsEncryption\s*:\s*true/);
+});
