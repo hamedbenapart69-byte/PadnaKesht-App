@@ -1,4 +1,4 @@
-name: Build Kimi-based PadnaKesht Android APK
+name: Kimi Offline Android APK
 
 on:
   workflow_dispatch:
@@ -6,109 +6,83 @@ on:
     branches:
       - kimi-android
     paths:
-      - 'Kimi_Agent_技能插件列表.zip'
-      - 'kimi-source.zip'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - 'vite.config.ts'
+      - 'tests/**'
       - '.github/workflows/kimi-android.yml'
 
 permissions:
   contents: read
 
+concurrency:
+  group: kimi-android-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build-apk:
+  validate-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout Kimi Android branch
+      - name: Checkout dedicated Android branch
         uses: actions/checkout@v4
         with:
           ref: kimi-android
 
-      - name: Require original Kimi source archive
-        run: |
-          if [ -f kimi-source.zip ]; then
-            ARCHIVE=kimi-source.zip
-          elif [ -f Kimi_Agent_技能插件列表.zip ]; then
-            ARCHIVE=Kimi_Agent_技能插件列表.zip
-          else
-            echo "::error::The original Kimi ZIP is not committed on branch kimi-android. The build cannot proceed until the archive is uploaded."
-            exit 1
-          fi
-          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
-
-      - name: Validate and extract Kimi project
-        run: |
-          unzip -t "$ARCHIVE"
-          mkdir -p kimi-source
-          unzip -q "$ARCHIVE" -d kimi-source
-          test -f kimi-source/app/package.json
-          test -f kimi-source/app/package-lock.json
-          test -f kimi-source/app/index.html
-
-      - name: Setup Node
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: kimi-source/app/package-lock.json
 
-      - name: Setup Java
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run offline source smoke tests
+        run: npm test
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Verify bundled offline entry point
+        run: test -s dist/index.html
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install source dependencies
-        working-directory: kimi-source/app
-        run: npm ci
-
-      - name: TypeScript check
-        working-directory: kimi-source/app
-        run: npm run check
-
-      - name: Unit tests
-        working-directory: kimi-source/app
-        run: npm test -- --passWithNoTests
-
-      - name: Add Capacitor Android support
-        working-directory: kimi-source/app
-        run: |
-          npm install @capacitor/core@^6 @capacitor/android@^6
-          npm install --save-dev @capacitor/cli@^6
-          cat > capacitor.config.ts <<'EOF'
-          import type { CapacitorConfig } from '@capacitor/cli';
-          const config: CapacitorConfig = {
-            appId: 'com.padnakesht.kimi',
-            appName: 'پادناکشت کیمی',
-            webDir: 'dist/public',
-            bundledWebRuntime: false
-          };
-          export default config;
-          EOF
-
-      - name: Build web app
-        working-directory: kimi-source/app
-        run: npm run build
-
-      - name: Create and sync Android project
-        working-directory: kimi-source/app
+      - name: Add and synchronize Capacitor Android
         run: |
           npx cap add android
           npx cap sync android
           test -f android/gradlew
-          test -d dist/public
+          test -s android/app/src/main/assets/public/index.html
 
-      - name: Build debug APK
-        working-directory: kimi-source/app/android
+      - name: Assemble debug APK
+        working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew --no-daemon assembleDebug
 
-      - name: Upload APK artifact
+      - name: Verify APK exists and is non-empty
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK" | tee apk-sha256.txt
+
+      - name: Upload installable debug APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Kimi-Android-debug-APK
-          path: kimi-source/app/android/app/build/outputs/apk/debug/app-debug.apk
+          name: PadnaKesht-Kimi-Offline-Android-debug
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            apk-sha256.txt
           if-no-files-found: error
           retention-days: 30
