@@ -24,6 +24,7 @@ test('business modules and backup controls exist', () => {
   assert.match(app, /function validBackupRecord/);
   assert.match(app, /دادهٔ نامعتبر در بخش/);
   assert.match(app, /Excel.Sheet/);
+  assert.match(app, /typeof value==='number'\&\&Number.isFinite\(value\)\?'Number':'String'/);
   assert.match(app, /text=\"'\"\+text/);
   assert.match(app, /application\/json/);
 });
