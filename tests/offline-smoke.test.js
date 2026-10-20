@@ -46,3 +46,10 @@ test('partial payment safely handles older invoices without a payments array', (
   assert.match(app, /if\(!Array\.isArray\(invoice\.payments\)\)\{invoice\.payments=\[\]/);
   assert.match(app, /opening-balance-migration/);
 });
+
+
+test('overdue receivables alert is wired into the offline dashboard', () => {
+  assert.match(app, /daysPastDue/);
+  assert.match(app, /هشدار مطالبات معوق بیش از ۳۰ روز/);
+  assert.match(app, /daysPastDue\(i\.dueDate\)>30/);
+});
