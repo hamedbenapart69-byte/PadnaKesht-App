@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const backup = readFileSync(new URL('../src/backup.js', import.meta.url), 'utf8');
+const xlsx = readFileSync(new URL('../src/xlsx.js', import.meta.url), 'utf8');
 test('app shell is Persian and right-to-left', () => {
   assert.match(html, /<html lang="fa" dir="rtl">/);
   assert.match(html, /charset="UTF-8"/i);
@@ -21,14 +22,13 @@ test('business modules and backup controls exist', () => {
   assert.match(app, /CREATE TABLE IF NOT EXISTS app_state/);
   for (const table of ['customers','products','invoices','invoice_lines','payments','notes','audit_log']) assert.ok(app.includes('CREATE TABLE IF NOT EXISTS ' + table), 'missing SQLite table ' + table);
   assert.match(app, /function csvCell/);
-  assert.match(app, /function xmlEsc/);
   assert.match(backup, /export function validBackupRecord/);
   assert.match(backup, /دادهٔ نامعتبر در بخش/);
   assert.match(app, /validateBackupPayload\(payload,state\)/);
-  assert.match(app, /Excel.Sheet/);
-  assert.match(app, /typeof value==='number'\&\&Number.isFinite\(value\)\?'Number':'String'/);
   assert.match(app, /text=\"'\"\+text/);
   assert.match(app, /application\/json/);
+  assert.match(app, /padnakasht-report\.xlsx/);
+  assert.match(xlsx, /application\/vnd\.openxmlformats-officedocument/);
 });
 test('dynamic user content is escaped before rendering', () => {
   assert.match(app, /function esc\(/);

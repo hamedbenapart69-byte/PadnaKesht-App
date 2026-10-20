@@ -2,6 +2,7 @@ import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, 
 import { validateBackupPayload } from './backup.js';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { buildOverdueNotificationPlan } from './notifications.js';
+import { buildXlsx } from './xlsx.js';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
@@ -217,12 +218,14 @@ document.getElementById('importFile').onchange=async e=>{
   e.target.value='';
 };
 document.getElementById('exportCsv').onclick=()=>{const rows=[['نوع','شناسه','نام/شماره','مبلغ کل ریال','دریافتی ریال','مانده ریال','تاریخ']];state.customers.forEach(c=>rows.push(['مشتری',c.id,c.name,'','','',c.createdAt]));state.products.forEach(p=>rows.push(['محصول',p.id,p.name,p.priceRial,'',p.stock,p.createdAt]));state.invoices.forEach(i=>rows.push(['فاکتور',i.id,i.number,i.totalRial,i.status==='cancelled'?0:i.paidRial,i.status==='cancelled'?0:i.totalRial-i.paidRial,i.createdAt]));download('padnakasht-report.csv','\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n'),'text/csv;charset=utf-8')};
-function xmlEsc(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');}
-document.getElementById('exportExcel').onclick=()=>{const sheets=[
+document.getElementById('exportExcel').onclick=()=>{
+const sheets=[
 {name:'مشتریان',rows:[['نام','شماره تماس','نشانی','توضیحات'],...state.customers.map(c=>[c.name,c.phone,c.address,c.notes])]},
 {name:'محصولات',rows:[['نام محصول','واحد','قیمت ریال','موجودی'],...state.products.map(p=>[p.name,p.unit,p.priceRial,p.stock])]},
 {name:'فاکتورها',rows:[['شماره','مشتری','تاریخ','اقلام','جمع ریال','تخفیف ریال','کل ریال','دریافتی ریال','مانده ریال','سررسید','وضعیت'],...state.invoices.map(i=>[i.number,state.customers.find(c=>c.id===i.customerId)?.name||'',date(i.createdAt),(i.lines||[]).map(l=>(l.productName||'')+' × '+l.quantity).join('؛ '),i.subtotalRial,i.discountRial,i.totalRial,i.paidRial,i.status==='cancelled'?0:i.totalRial-i.paidRial,i.dueDate?date(i.dueDate):'',i.status==='cancelled'?'لغو شده':'فعال'])]}
-];const xmlCell=value=>'<Cell><Data ss:Type="'+(typeof value==='number'&&Number.isFinite(value)?'Number':'String')+'">'+xmlEsc(value)+'</Data></Cell>';const xml='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+sheets.map(sheet=>'<Worksheet ss:Name="'+xmlEsc(sheet.name)+'"><Table>'+sheet.rows.map(row=>'<Row>'+row.map(xmlCell).join('')+'</Row>').join('')+'</Table></Worksheet>').join('')+'</Workbook>';download('padnakasht-report.xml',xml,'application/vnd.ms-excel;charset=utf-8');};
+];
+download('padnakasht-report.xlsx',buildXlsx(sheets),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+};
 document.getElementById('print').onclick=()=>window.print();
 document.getElementById('clearAll').onclick=()=>{if(confirm('همه اطلاعات این دستگاه برای همیشه حذف شود؟ ابتدا پشتیبان بگیرید.')){state=emptyState();persist();}};
 render();
