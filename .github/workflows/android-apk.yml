@@ -20,6 +20,10 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install
+      - name: Audit installed dependencies
+        run: |
+          npm audit --json > npm-audit.json || true
+          node --input-type=commonjs -e "const r=require('./npm-audit.json'); console.log('Dependency audit totals:', JSON.stringify(r.metadata?.vulnerabilities || {})); for (const [name,item] of Object.entries(r.vulnerabilities || {})) console.log(JSON.stringify({name,severity:item.severity,range:item.range,fixAvailable:item.fixAvailable,via:item.via.map(v=>typeof v==='string'?v:{title:v.title,url:v.url,range:v.range})}));"
       - name: Run unit and source tests
         run: npm test
       - name: Build web assets for engineering validation
