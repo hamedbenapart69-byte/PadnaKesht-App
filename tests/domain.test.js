@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits, daysPastDue } from '../src/domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeDigits, daysPastDue, calculateStockAdjustments } from '../src/domain.js';
 
 test('Persian and Arabic numerals normalize to ASCII digits', () => { assert.equal(normalizeDigits('۰۹۱۲٣٤'), '091234'); });
 
@@ -54,4 +54,13 @@ test('invoice numbering remains unique after imported or non-sequential invoices
   const { nextInvoiceNumber } = await import('../src/domain.js');
   assert.equal(nextInvoiceNumber([]), 'PK-00001');
   assert.equal(nextInvoiceNumber([{ number: 'PK-00001' }, { number: 'PK-00007' }, { number: 'CUSTOM' }]), 'PK-00008');
+});
+
+test('editing invoice stock restores old quantities before consuming new quantities', () => {
+  const products=[{id:'p1',stock:2},{id:'p2',stock:10}];
+  const changes=calculateStockAdjustments(products,[{productId:'p1',quantity:3}],[{productId:'p1',quantity:4},{productId:'p2',quantity:2}]);
+  assert.deepEqual(changes,[{productId:'p1',delta:-1,nextStock:1},{productId:'p2',delta:-2,nextStock:8}]);
+  assert.throws(()=>calculateStockAdjustments(products,[{productId:'p1',quantity:3}],[{productId:'p1',quantity:6}]),/موجودی برای این عملیات کافی نیست/);
+  assert.throws(()=>calculateStockAdjustments(products,[],[{productId:'missing',quantity:1}]),/وجود ندارد/);
+  assert.throws(()=>calculateStockAdjustments(products,[],[{productId:'p1',quantity:0}]),/نامعتبر/);
 });

@@ -71,3 +71,10 @@ test('invoice line editor helpers exist and enforce at least one line', () => {
   assert.match(app, /فاکتور باید دست‌کم یک قلم داشته باشد/);
   assert.match(app, /if\(!document\.querySelector\('\.invoice-line'\)\)addInvoiceLine\(\)/);
 });
+
+test('invoice editing preserves existing payments and exposes explicit cancel action', () => {
+  assert.match(app, /data-invoice-edit/);
+  assert.match(app, /جمع جدید فاکتور نمی‌تواند از مبلغ دریافت‌شده کمتر باشد/);
+  assert.match(app, /invoicePaid\.disabled=true/);
+  assert.match(app, /calculateStockAdjustments\(state\.products,oldLines,calc\.lines\)/);
+});

@@ -92,3 +92,33 @@ export function nextInvoiceNumber(invoices = []) {
   }, 0);
   return 'PK-' + String(max + 1).padStart(5, '0');
 }
+
+/**
+ * Calculate stock changes for creating or editing an invoice.
+ * previousLines are restored to stock before nextLines are consumed.
+ */
+export function calculateStockAdjustments(products, previousLines = [], nextLines = []) {
+  const productById = new Map((products || []).map(product => [product.id, product]));
+  const aggregate = lines => {
+    const quantities = new Map();
+    for (const line of lines || []) {
+      if (!line || typeof line.productId !== 'string' || !line.productId ||
+          !Number.isSafeInteger(line.quantity) || line.quantity <= 0) {
+        throw new Error('اقلام فاکتور برای محاسبهٔ موجودی نامعتبر هستند.');
+      }
+      const quantity = (quantities.get(line.productId) || 0) + line.quantity;
+      if (!Number.isSafeInteger(quantity)) throw new Error('مجموع تعداد کالا بیش از محدودهٔ مجاز است.');
+      quantities.set(line.productId, quantity);
+    }
+    return quantities;
+  };
+  const oldQuantities = aggregate(previousLines);
+  const newQuantities = aggregate(nextLines);
+  const ids = new Set([...oldQuantities.keys(), ...newQuantities.keys()]);
+  return [...ids].map(productId => {
+    const product = productById.get(productId);
+    if (!product) throw new Error('یکی از کالاهای فاکتور دیگر در فهرست محصولات وجود ندارد.');
+    const delta = (oldQuantities.get(productId) || 0) - (newQuantities.get(productId) || 0);
+    return { productId, delta, nextStock: validateStockChange(product.stock, delta) };
+  });
+}

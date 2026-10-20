@@ -1,4 +1,4 @@
-import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, normalizeText, normalizeDigits, daysPastDue, nextInvoiceNumber } from './domain.js';
+import { validateCustomer, calculateInvoice, applyPayment, validateStockChange, calculateStockAdjustments, normalizeText, normalizeDigits, daysPastDue, nextInvoiceNumber } from './domain.js';
 import { validateBackupPayload } from './backup.js';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
@@ -28,6 +28,7 @@ const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:
 let nativeDB = null;
 let nativeWriteQueue = Promise.resolve();
 let state = loadState();
+let invoiceEditId = '';
 async function syncNormalizedTables(db, snapshot){
   await db.beginTransaction();
   try{
@@ -87,7 +88,7 @@ document.getElementById('customerList').innerHTML=table(['نام','تماس','ن
 document.getElementById('productList').innerHTML=table(['محصول','واحد','قیمت (ریال)','موجودی','عملیات'],state.products.map(p=>[p.name,p.unit,money(p.priceRial),String(p.stock),{html:'<button class="btn" data-product-edit="'+esc(p.id)+'">ویرایش</button> <button class="btn" data-product-price="'+esc(p.id)+'">تغییر قیمت</button> <button class="btn" data-product-stock="'+esc(p.id)+'">افزودن موجودی</button> <button class="btn" data-product-history="'+esc(p.id)+'">سوابق</button> <button class="btn danger" data-product-delete="'+esc(p.id)+'">حذف</button>'}]));
 document.getElementById('invoiceCustomer').innerHTML=options(state.customers,'انتخاب مشتری');refreshInvoiceLineOptions();
 document.getElementById('paymentInvoice').innerHTML=options(state.invoices.filter(i=>i.status!=='cancelled'&&i.paidRial<i.totalRial).map(i=>({id:i.id,name:i.number+' · '+(state.customers.find(c=>c.id===i.customerId)?.name||'مشتری حذف‌شده')+' · مانده '+money(i.totalRial-i.paidRial)})),'انتخاب فاکتور');
-document.getElementById('invoiceList').innerHTML=table(['شماره','مشتری','تاریخ','جمع','دریافتی','مانده','سررسید','عملیات'],state.invoices.slice().reverse().map(i=>[i.number,state.customers.find(c=>c.id===i.customerId)?.name||'—',date(i.createdAt),money(i.totalRial),i.status==='cancelled'?'لغو شده':money(i.paidRial),i.status==='cancelled'?money(0):money(i.totalRial-i.paidRial),i.dueDate?date(i.dueDate):'—',i.status==='cancelled'?'لغوشده':{html:'<button class="btn danger" data-invoice-cancel="'+esc(i.id)+'">لغو</button>'}]));
+document.getElementById('invoiceList').innerHTML=table(['شماره','مشتری','تاریخ','جمع','دریافتی','مانده','سررسید','عملیات'],state.invoices.slice().reverse().map(i=>[i.number,state.customers.find(c=>c.id===i.customerId)?.name||'—',date(i.createdAt),money(i.totalRial),i.status==='cancelled'?'لغو شده':money(i.paidRial),i.status==='cancelled'?money(0):money(i.totalRial-i.paidRial),i.dueDate?date(i.dueDate):'—',i.status==='cancelled'?'لغوشده':{html:'<button class="btn" data-invoice-edit="'+esc(i.id)+'">ویرایش</button> <button class="btn danger" data-invoice-cancel="'+esc(i.id)+'">لغو</button>'}]));
 document.getElementById('reportContent').innerHTML='<div class="grid">'+[['کل فروش',money(sales)],['دریافتی',money(state.invoices.filter(i=>i.status!=='cancelled').reduce((s,i)=>s+i.paidRial,0))],['مانده',money(unpaid)],['موجودی اقلام',state.products.reduce((s,p)=>s+p.stock,0).toLocaleString('fa-IR')]].map(x=>'<div class="stat"><small>'+x[0]+'</small><strong>'+esc(x[1])+'</strong></div>').join('')+'</div><h2>مطالبات سررسیدشده</h2>'+table(['فاکتور','مشتری','سررسید','مانده'],state.invoices.filter(i=>i.status!=='cancelled'&&i.dueDate&&i.dueDate<new Date().toISOString().slice(0,10)&&i.paidRial<i.totalRial).map(i=>[i.number,state.customers.find(c=>c.id===i.customerId)?.name||'—',date(i.dueDate),money(i.totalRial-i.paidRial)]))+'<h2 style="margin-top:20px">گردش حساب مشتریان</h2>'+table(['مشتری','فروش','دریافتی','مانده'],state.customers.map(c=>{const inv=activeInvoices.filter(i=>i.customerId===c.id);const total=inv.reduce((s,i)=>s+i.totalRial,0);const paid=inv.reduce((s,i)=>s+i.paidRial,0);return [c.name,money(total),money(paid),money(total-paid)];}))+'<h2 style="margin-top:20px">وضعیت موجودی</h2>'+table(['محصول','واحد','موجودی','قیمت'],state.products.map(p=>[p.name,p.unit,String(p.stock),money(p.priceRial)]));
 const legacyNotice=document.getElementById('legacyNotice');if(legacyNotice)legacyNotice.textContent=state.legacyRecords.length?'از نسخهٔ قبلی '+state.legacyRecords.length.toLocaleString('fa-IR')+' رکورد قدیمی نگهداری شده است؛ آن‌ها را از پشتیبان JSON می‌توانید حفظ کنید.':'';
 document.getElementById('recent').innerHTML=state.invoices.length?'<h3>آخرین فاکتورها</h3>'+table(['شماره','تاریخ','جمع','مانده'],state.invoices.slice(-5).reverse().map(i=>[i.number,date(i.createdAt),money(i.totalRial),money(i.status==='cancelled'?0:i.totalRial-i.paidRial)])):'<div class="empty">هنوز فاکتوری ثبت نشده است. ابتدا مشتری و محصول تعریف کنید.</div>';
@@ -102,20 +103,55 @@ document.getElementById('productForm').addEventListener('submit',e=>{e.preventDe
 document.getElementById('addInvoiceLine').addEventListener('click',()=>addInvoiceLine());
 document.getElementById('invoiceLines').addEventListener('click',e=>{if(e.target.closest('.invoice-line-remove')){const rows=[...document.querySelectorAll('.invoice-line')];if(rows.length<=1)return alert('فاکتور باید دست‌کم یک قلم داشته باشد.');e.target.closest('.invoice-line').remove();}});
 document.getElementById('invoiceForm').addEventListener('submit',e=>{e.preventDefault();try{
+const editingId=invoiceEditId;
+const existingInvoice=editingId?state.invoices.find(i=>i.id===editingId):null;
+if(editingId&&(!existingInvoice||existingInvoice.status==='cancelled'))throw Error('فاکتور برای ویرایش معتبر نیست.');
 const customer=state.customers.find(c=>c.id===invoiceCustomer.value);if(!customer)throw Error('مشتری معتبر انتخاب کنید.');
-const lines=[...document.querySelectorAll('.invoice-line')].map(row=>{const product=state.products.find(p=>p.id===row.querySelector('.invoice-line-product').value);if(!product)throw Error('برای هر قلم محصول معتبر انتخاب کنید.');return {product,productId:product.id,quantity:num(row.querySelector('.invoice-line-quantity').value),unitPriceRial:product.priceRial};});
+const oldLines=existingInvoice?.lines|| (existingInvoice?[{productId:existingInvoice.productId,quantity:existingInvoice.quantity,unitPriceRial:existingInvoice.unitPriceRial,productName:existingInvoice.productName,unit:existingInvoice.unit}]:[]);
+const lines=[...document.querySelectorAll('.invoice-line')].map(row=>{const product=state.products.find(p=>p.id===row.querySelector('.invoice-line-product').value);if(!product)throw Error('برای هر قلم محصول معتبر انتخاب کنید.');const previous=oldLines.find(line=>line.productId===product.id);return {product,productId:product.id,quantity:num(row.querySelector('.invoice-line-quantity').value),unitPriceRial:previous?.unitPriceRial??product.priceRial};});
 if(!lines.length)throw Error('فاکتور باید دست‌کم یک قلم داشته باشد.');
-const quantities=new Map();for(const line of lines)quantities.set(line.productId,(quantities.get(line.productId)||0)+line.quantity);
-for(const [pid,qty] of quantities){const product=state.products.find(p=>p.id===pid);validateStockChange(product.stock,-qty);}
-const discount=num(invoiceDiscount.value),paid=num(invoicePaid.value);
+const discount=num(invoiceDiscount.value);
 const calc=calculateInvoice(lines.map(l=>({productId:l.productId,quantity:l.quantity,unitPriceRial:l.unitPriceRial})),discount);
-const payment=paid?applyPayment(calc,[],paid):{paidRial:0,remainingRial:calc.totalRial};
-for(const [pid,qty] of quantities){const product=state.products.find(p=>p.id===pid);product.stock=validateStockChange(product.stock,-qty);}
-const id=uid();const invoice={id,number:nextInvoiceNumber(state.invoices),customerId:customer.id,lines:calc.lines.map(l=>({...l,productName:state.products.find(p=>p.id===l.productId)?.name||'',unit:state.products.find(p=>p.id===l.productId)?.unit||''})),productId:lines[0].productId,productName:lines[0].product.name,unit:lines[0].product.unit,quantity:lines.reduce((s,l)=>s+l.quantity,0),unitPriceRial:lines[0].unitPriceRial,subtotalRial:calc.subtotalRial,discountRial:discount,totalRial:calc.totalRial,paidRial:payment.paidRial,dueDate:invoiceDue.value||'',createdAt:new Date().toISOString(),status:'active',payments:paid?[{id:uid(),amountRial:paid,at:new Date().toISOString(),kind:'initial'}]:[]};
-state.invoices.push(invoice);audit('create','invoice',id,invoice.number);for(const [pid,qty] of quantities)audit('stock-decrease','product',pid,'invoice '+invoice.number+' qty '+qty);persist();e.target.reset();document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';alert('فاکتور '+invoice.number+' ثبت شد. مانده: '+money(invoice.totalRial-invoice.paidRial));
-}catch(err){alert(err.message||'ثبت فاکتور ناموفق بود.')}});
+const stockChanges=calculateStockAdjustments(state.products,oldLines,calc.lines);
+let payment;
+if(existingInvoice){
+  if(calc.totalRial<existingInvoice.paidRial)throw Error('جمع جدید فاکتور نمی‌تواند از مبلغ دریافت‌شده کمتر باشد.');
+  payment={paidRial:existingInvoice.paidRial,remainingRial:calc.totalRial-existingInvoice.paidRial};
+}else{
+  const paid=num(invoicePaid.value);
+  payment=paid?applyPayment(calc,[],paid):{paidRial:0,remainingRial:calc.totalRial};
+}
+for(const change of stockChanges){const product=state.products.find(p=>p.id===change.productId);product.stock=change.nextStock;}
+const invoiceLines=calc.lines.map(l=>({...l,productName:state.products.find(p=>p.id===l.productId)?.name||'',unit:state.products.find(p=>p.id===l.productId)?.unit||''}));
+if(existingInvoice){
+  Object.assign(existingInvoice,{customerId:customer.id,lines:invoiceLines,productId:invoiceLines[0].productId,productName:invoiceLines[0].productName,unit:invoiceLines[0].unit,quantity:invoiceLines.reduce((sum,line)=>sum+line.quantity,0),unitPriceRial:invoiceLines[0].unitPriceRial,subtotalRial:calc.subtotalRial,discountRial:discount,totalRial:calc.totalRial,dueDate:invoiceDue.value||''});
+  audit('update','invoice',existingInvoice.id,existingInvoice.number);
+  for(const change of stockChanges)if(change.delta!==0)audit('stock-adjustment','product',change.productId,'invoice edit '+existingInvoice.number+' delta '+change.delta);
+  persist();alert('تغییرات فاکتور '+existingInvoice.number+' ذخیره شد. مانده: '+money(payment.remainingRial));
+}else{
+  const id=uid();const invoice={id,number:nextInvoiceNumber(state.invoices),customerId:customer.id,lines:invoiceLines,productId:invoiceLines[0].productId,productName:invoiceLines[0].productName,unit:invoiceLines[0].unit,quantity:invoiceLines.reduce((sum,line)=>sum+line.quantity,0),unitPriceRial:invoiceLines[0].unitPriceRial,subtotalRial:calc.subtotalRial,discountRial:discount,totalRial:calc.totalRial,paidRial:payment.paidRial,dueDate:invoiceDue.value||'',createdAt:new Date().toISOString(),status:'active',payments:payment.paidRial?[{id:uid(),amountRial:payment.paidRial,at:new Date().toISOString(),kind:'initial'}]:[]};
+  state.invoices.push(invoice);audit('create','invoice',id,invoice.number);
+  for(const change of stockChanges)if(change.delta!==0)audit('stock-decrease','product',change.productId,'invoice '+invoice.number+' delta '+change.delta);
+  persist();alert('فاکتور '+invoice.number+' ثبت شد. مانده: '+money(payment.remainingRial));
+}
+invoiceEditId='';e.target.reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';
+}catch(err){alert(err.message||'ثبت یا ویرایش فاکتور ناموفق بود.')}});
+document.getElementById('cancelInvoiceEdit').addEventListener('click',()=>{invoiceEditId='';document.getElementById('invoiceForm').reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';});
 document.getElementById('paymentForm').addEventListener('submit',e=>{e.preventDefault();try{const invoice=state.invoices.find(i=>i.id===paymentInvoice.value);if(!invoice||invoice.status==='cancelled')throw Error('فاکتور معتبر انتخاب کنید.');const amount=num(paymentAmount.value);if(!Array.isArray(invoice.payments)){invoice.payments=[];if(invoice.paidRial>0)invoice.payments.push({id:uid(),amountRial:invoice.paidRial,at:invoice.createdAt||new Date().toISOString(),kind:'opening-balance-migration'});}const result=applyPayment({totalRial:invoice.totalRial},invoice.payments,amount);invoice.payments.push({id:uid(),amountRial:amount,at:new Date().toISOString(),kind:'partial'});invoice.paidRial=result.paidRial;audit('payment','invoice',invoice.id,money(amount));persist();e.target.reset();alert('دریافت ثبت شد. مانده: '+money(result.remainingRial));}catch(err){alert(err.message||'ثبت دریافت ناموفق بود.')}});
-document.addEventListener('click',e=>{const ce=e.target.closest('[data-customer-edit]');if(ce){const item=state.customers.find(x=>x.id===ce.dataset.customerEdit);if(item){customerEditId.value=item.id;customerName.value=item.name;customerPhone.value=item.phone||'';customerAddress.value=item.address||'';customerNotes.value=item.notes||'';document.querySelector('[data-tab="customers"]').click();customerName.focus();}}
+document.addEventListener('click',e=>{
+const invoiceEditButton=e.target.closest('[data-invoice-edit]');
+if(invoiceEditButton){
+  const item=state.invoices.find(invoice=>invoice.id===invoiceEditButton.dataset.invoiceEdit);
+  if(item&&item.status!=='cancelled'){
+    invoiceEditId=item.id;invoiceCustomer.value=item.customerId;invoiceDue.value=item.dueDate||'';invoiceDiscount.value=String(item.discountRial||0);invoicePaid.value='0';invoicePaid.disabled=true;
+    document.getElementById('invoiceSubmit').textContent='ذخیره تغییرات فاکتور';document.getElementById('cancelInvoiceEdit').classList.remove('hidden');
+    document.getElementById('invoiceLines').innerHTML='';
+    const lines=item.lines||[{productId:item.productId,quantity:item.quantity}];
+    for(const line of lines)addInvoiceLine(line.productId,line.quantity);
+    document.querySelector('[data-tab="invoices"]').click();
+  }
+}
+const ce=e.target.closest('[data-customer-edit]');if(ce){const item=state.customers.find(x=>x.id===ce.dataset.customerEdit);if(item){customerEditId.value=item.id;customerName.value=item.name;customerPhone.value=item.phone||'';customerAddress.value=item.address||'';customerNotes.value=item.notes||'';document.querySelector('[data-tab="customers"]').click();customerName.focus();}}
 const pe=e.target.closest('[data-product-edit]');if(pe){const item=state.products.find(x=>x.id===pe.dataset.productEdit);if(item){productEditId.value=item.id;productName.value=item.name;productUnit.value=item.unit;productPrice.value=String(item.priceRial);productStock.value=String(item.stock);document.querySelector('[data-tab="products"]').click();productName.focus();}}
 const c=e.target.closest('[data-customer-delete]');if(c){const id=c.dataset.customerDelete;if(state.invoices.some(i=>i.customerId===id&&i.status!=='cancelled'))return alert('مشتری دارای فاکتور است؛ برای حفظ سابقه حذف نمی‌شود.');if(confirm('مشتری حذف شود؟')){state.customers=state.customers.filter(x=>x.id!==id);audit('delete','customer',id);persist();}}
 const historyButton=e.target.closest('[data-product-history]');if(historyButton){const item=state.products.find(x=>x.id===historyButton.dataset.productHistory);if(item){const events=state.audit.filter(a=>a.entityId===item.id).slice().reverse();alert(events.length?events.map(a=>date(a.at)+' · '+a.action+' · '+(a.detail||'')).join('\n'):'سابقه‌ای ثبت نشده است.');}}
