@@ -96,3 +96,13 @@ test('native persistence waits for SQLite commit before confirming a mutation', 
   assert.match(app, /await persist\(\);alert\('فاکتور '/);
   assert.match(app, /addEventListener\('submit',async e=>/);
 });
+
+test('local PIN gate is present, keeps authentication offline, and excludes credentials from backup exports', () => {
+  assert.match(html, /id="authGate"/);
+  assert.match(html, /id="authPinConfirm"/);
+  assert.match(app, /createPinCredential/);
+  assert.match(app, /verifyPinCredential/);
+  assert.match(app, /const \{security,\.\.\.backupState\}=state/);
+  assert.match(app, /document\.addEventListener\('visibilitychange'/);
+  assert.match(app, /auth-locked/);
+});

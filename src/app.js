@@ -5,6 +5,7 @@ import { buildOverdueNotificationPlan } from './notifications.js';
 import { buildXlsx } from './xlsx.js';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
+import { createPinCredential, verifyPinCredential, isValidPin } from './auth.js';
 
 const KEY = 'padnakasht-local-v2';
 const customerEditId = document.getElementById('customerEditId');
@@ -27,7 +28,7 @@ const paymentAmount = document.getElementById('paymentAmount');
 const noteText = document.getElementById('noteText');
 const importFile = document.getElementById('importFile');
 
-const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:[],audit:[],legacyRecords:[],notificationsEnabled:false});
+const emptyState = () => ({version:2,customers:[],products:[],invoices:[],notes:[],audit:[],legacyRecords:[],notificationsEnabled:false,security:null});
 let nativeDB = null;
 let nativeWriteQueue = Promise.resolve();
 let notificationSyncQueue = Promise.resolve(false);
@@ -307,7 +308,7 @@ const p=e.target.closest('[data-product-delete]');if(p){const id=p.dataset.produ
 const inv=e.target.closest('[data-invoice-cancel]');if(inv){const item=state.invoices.find(i=>i.id===inv.dataset.invoiceCancel);if(!item||item.status==='cancelled')return;if(confirm('فاکتور '+item.number+' لغو شود؟ موجودی بازمی‌گردد و اگر وجهی دریافت شده باشد، یک ثبت برگشت مالی به مبلغ '+money(item.paidRial)+' ایجاد می‌شود. فقط اگر برگشت وجه واقعاً انجام شده یا جداگانه ثبت خواهد شد تأیید کنید.')){const affected=item.lines||[{productId:item.productId,quantity:item.quantity}];for(const line of affected){const product=state.products.find(p=>p.id===line.productId);if(product)product.stock=validateStockChange(product.stock,line.quantity);}if(item.paidRial>0){item.refunds=item.refunds||[];item.refunds.push({id:uid(),amountRial:item.paidRial,at:new Date().toISOString(),kind:'cancellation-refund'});audit('refund','invoice',item.id,money(item.paidRial));item.refundedRial=(item.refundedRial||0)+item.paidRial;item.paidRial=0;}item.status='cancelled';audit('cancel','invoice',item.id);await persist();}}
 const n=e.target.closest('[data-note-delete]');if(n&&confirm('یادداشت حذف شود؟')){state.notes=state.notes.filter(x=>x.id!==n.dataset.noteDelete);await persist();}});
 document.getElementById('noteForm').addEventListener('submit',async e=>{e.preventDefault();const text=normalizeText(noteText.value);if(!text)return;state.notes.push({id:uid(),text,createdAt:new Date().toISOString()});await persist();e.target.reset();});
-document.getElementById('exportJson').onclick=()=>download('padnakasht-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),'application/json');
+document.getElementById('exportJson').onclick=()=>{const {security,...backupState}=state;download('padnakasht-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...backupState,exportedAt:new Date().toISOString()},null,2),'application/json')};
 document.getElementById('importButton').onclick=()=>importFile.click();
 document.getElementById('importFile').onchange=async e=>{
   const f=e.target.files?.[0];if(!f)return;
@@ -335,6 +336,85 @@ const sheets=[
 download('padnakasht-report.xlsx',buildXlsx(sheets),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 };
 document.getElementById('print').onclick=()=>window.print();
-document.getElementById('clearAll').onclick=async()=>{if(confirm('همه اطلاعات این دستگاه برای همیشه حذف شود؟ ابتدا پشتیبان بگیرید.')){state=emptyState();await persist();}};
+document.getElementById('clearAll').onclick=async()=>{if(confirm('همه اطلاعات این دستگاه برای همیشه حذف شود؟ ابتدا پشتیبان بگیرید.')){const security=state.security;state=emptyState();state.security=security;await persist();}};
+
+let authUnlocked=false;
+let authFailures=0;
+let authLockedUntil=0;
+const authGate=document.getElementById('authGate');
+const authForm=document.getElementById('authForm');
+const authPin=document.getElementById('authPin');
+const authPinConfirm=document.getElementById('authPinConfirm');
+const authConfirmField=document.getElementById('authConfirmField');
+const authTitle=document.getElementById('authTitle');
+const authHint=document.getElementById('authHint');
+const authSubmit=document.getElementById('authSubmit');
+const authMessage=document.getElementById('authMessage');
+function showAuthGate(setup){
+  document.body.classList.add('auth-locked');
+  authGate.classList.remove('hidden');
+  authTitle.textContent=setup?'تنظیم رمز محلی پادناکِشت':'ورود به پادناکِشت';
+  authHint.textContent=setup?'یک رمز ۶ تا ۱۲ رقمی برای قفل محلی برنامه تعیین کنید.':'برای مشاهده و ویرایش اطلاعات این دستگاه، رمز محلی را وارد کنید.';
+  authConfirmField.classList.toggle('hidden',!setup);
+  authPin.autocomplete=setup?'new-password':'current-password';
+  authPinConfirm.required=setup;
+  authSubmit.textContent=setup?'ثبت رمز و ورود':'ورود امن';
+  authMessage.textContent='';
+  authPin.value='';authPinConfirm.value='';
+}
+function unlockApp(){
+  authUnlocked=true;
+  document.body.classList.remove('auth-loading','auth-locked');
+  authGate.classList.add('hidden');
+  authPin.value='';authPinConfirm.value='';
+  render();
+  if(state.notificationsEnabled)void syncOverdueNotifications();
+}
+async function initializeAppLock(){
+  document.body.classList.add('auth-loading');
+  const credential=state.security?.pinCredential;
+  showAuthGate(!credential);
+}
+authForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(authForm.dataset.submitting==='true')return;
+  authForm.dataset.submitting='true';
+  authSubmit.disabled=true;
+  try{
+    const pin=normalizeDigits(authPin.value);
+    const credential=state.security?.pinCredential;
+    if(!credential){
+      const confirmation=normalizeDigits(authPinConfirm.value);
+      if(!isValidPin(pin)){authMessage.textContent='رمز باید ۶ تا ۱۲ رقم باشد.';return;}
+      if(pin!==confirmation){authMessage.textContent='تکرار رمز با رمز اول یکسان نیست.';return;}
+      state.security={pinCredential:await createPinCredential(pin)};
+      await persist({skipNotificationSync:true});
+      unlockApp();
+      return;
+    }
+    if(Date.now()<authLockedUntil){authMessage.textContent='به‌دلیل تلاش‌های ناموفق، چند لحظه صبر کنید.';return;}
+    if(!await verifyPinCredential(pin,credential)){
+      authFailures++;
+      if(authFailures>=5){authFailures=0;authLockedUntil=Date.now()+30000;authMessage.textContent='۵ بار رمز اشتباه بود؛ ۳۰ ثانیه صبر کنید.';}
+      else authMessage.textContent='رمز واردشده درست نیست.';
+      authPin.value='';
+      return;
+    }
+    authFailures=0;
+    unlockApp();
+  }catch(error){
+    console.error('Local app authentication failed',error);
+    authMessage.textContent='ذخیره‌سازی یا بررسی رمز ناموفق بود. وضعیت ذخیره‌سازی برنامه را بررسی کنید.';
+  }finally{
+    authForm.dataset.submitting='false';
+    authSubmit.disabled=false;
+  }
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&authUnlocked&&state.security?.pinCredential){
+    authUnlocked=false;
+    showAuthGate(false);
+  }
+});
 render();
-if(state.notificationsEnabled)void syncOverdueNotifications();
+await initializeAppLock();
