@@ -1,13 +1,20 @@
-# Kimi Android — build status
+# وضعیت شاخهٔ اندروید پادناکِشت
 
-This branch is reserved for the Kimi ZIP source and Android packaging work. The source archive was inspected separately and contains a React + TypeScript app under `app/` (121 files). It includes a Hono/tRPC server and requires a MySQL database via `DATABASE_URL`; wrapping it in an APK does not make server/database functions offline.
+## وضعیت کد
+این شاخه اکنون رابط فارسی راست‌به‌چپ برای مدیریت مشتریان، محصولات، فاکتور چندقلمی، دریافت جزئی، ماندهٔ مشتری، گزارش‌ها، پشتیبان‌گیری و خروجی CSV دارد. قواعد دامنه در `src/domain.js` و رابط/منطق برنامه در `src/app.js` قرار دارد.
 
-## Build workflow
+## ذخیره‌سازی
+- در مرورگر، ذخیره‌سازی محلی با localStorage در دسترس است.
+- برای Android، افزونهٔ `@capacitor-community/sqlite` اضافه شده و جدول‌های مشتری، محصول، فاکتور، اقلام فاکتور، پرداخت، یادداشت و رویداد حسابرسی ساخته می‌شوند.
+- وضعیت کامل برنامه در جدول محلی ذخیره و در یک تراکنش به جدول‌های دامنه همگام می‌شود.
+- اجرای واقعی افزونه روی APK و آزمون دوام داده روی دستگاه هنوز تأیید نشده است؛ برچسب ذخیره‌سازی برنامه باید بر اساس نتیجهٔ اجرا بررسی شود.
 
-GitHub Actions workflow: `.github/workflows/kimi-android.yml`.
+## گردش‌های CI
+- `.github/workflows/android-qa-build.yml`: ساخت APK آزمایشی برای بررسی داخلی؛ artifact آن تأیید تولیدی نیست.
+- `.github/workflows/android-apk.yml`: آزمون منبع و ساخت وب، سپس دروازهٔ پذیرش اجباری؛ ساخت APK نهایی تا تکمیل معیارها و شواهد مسدود می‌ماند.
 
-The workflow deliberately validates the archive, checks types/tests, builds the frontend, verifies Capacitor configuration, then builds a debug APK and uploads it as an artifact. It will fail clearly until `kimi-source.zip` is committed to this branch and Capacitor Android integration is implemented. Do not treat a workflow file as proof that an APK has been built.
+## آزمون‌ها و محدودیت‌های باز
+آزمون‌های خودکار منبع و ساخت وب در اجراهای موفق قبلی عبور کرده‌اند؛ اجرای آخرین تغییرات و ساخت APK آزمایشی باید از GitHub Actions بررسی شود. هنوز آزمون واقعی نصب/حالت پرواز، امنیت/احراز هویت محلی، خروجی Excel واقعی، آزمون جامع تاریخ شمسی، و آزمون‌های پذیرش کامل مالی/انبار لازم است. هیچ‌یک از این موارد را بدون شواهد PASS اعلام نکنید.
 
-## Offline scope
-
-A real offline version needs a local persistence layer and explicit replacement of server-backed tRPC/database calls. Authentication and MySQL-dependent features cannot work fully offline without architectural changes. No credentials should be committed to this repository.
+## قانون انتشار
+ساختار تیم‌های ۵۰ نقش بازبینی و ۵۰ نقش اجرایی، تعریف نقش‌هاست و اثبات اجرای ۱۰۰ عامل مستقل نیست. هیچ‌گاه وضعیت gate یا شواهد را برای سبز کردن CI جعل نکنید. APK آزمایشی برای کشف نقص‌هاست؛ فقط پس از عبور از gate و ثبت شواهد نصب/آفلاین می‌توان نسخه‌ای را نهایی اعلام کرد.
