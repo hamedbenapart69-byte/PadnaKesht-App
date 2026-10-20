@@ -8,7 +8,7 @@ test('app shell is Persian and right-to-left', () => {
   assert.match(html, /charset="UTF-8"/i);
 });
 test('business modules and backup controls exist', () => {
-  for (const id of ['customerForm','productForm','invoiceForm','paymentForm','exportJson','exportCsv','importFile','clearAll']) {
+  for (const id of ['customerForm','productForm','invoiceForm','paymentForm','exportJson','exportCsv','exportExcel','importFile','clearAll']) {
     assert.ok(html.includes('id="' + id + '"'), 'missing element: ' + id);
   }
   for (const feature of ['customers','products','invoices','payments','localStorage','kimi-backup']) {
@@ -20,6 +20,8 @@ test('business modules and backup controls exist', () => {
   assert.match(app, /CREATE TABLE IF NOT EXISTS app_state/);
   for (const table of ['customers','products','invoices','invoice_lines','payments','notes','audit_log']) assert.ok(app.includes('CREATE TABLE IF NOT EXISTS ' + table), 'missing SQLite table ' + table);
   assert.match(app, /function csvCell/);
+  assert.match(app, /function xmlEsc/);
+  assert.match(app, /Excel.Sheet/);
   assert.match(app, /text=\"'\"\+text/);
   assert.match(app, /application\/json/);
 });
