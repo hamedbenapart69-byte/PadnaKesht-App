@@ -21,6 +21,7 @@ test('invoice totals use integer rials and validate discounts', () => {
   assert.equal(invoice.totalRial, 275000);
   assert.throws(() => calculateInvoice([{ productId: 'p1', quantity: 0, unitPriceRial: 10 }]), /تعداد/);
   assert.throws(() => calculateInvoice([{ productId: 'p1', quantity: 1, unitPriceRial: 10 }], 11), /تخفیف/);
+  assert.throws(() => calculateInvoice([{ productId: 'p1', quantity: Number.MAX_SAFE_INTEGER, unitPriceRial: 2 }]), /محدوده/);
 });
 
 test('partial payments calculate balance and reject overpayment', () => {
@@ -28,6 +29,9 @@ test('partial payments calculate balance and reject overpayment', () => {
   assert.deepEqual(applyPayment(invoice, [{ amountRial: 200 }], 300), { paidRial: 500, remainingRial: 500 });
   assert.throws(() => applyPayment(invoice, [{ amountRial: 900 }], 101), /بیشتر/);
   assert.throws(() => applyPayment(invoice, [], 0), /مثبت/);
+  assert.throws(() => applyPayment({ totalRial: -1 }, [], 1), /کل فاکتور/);
+  assert.throws(() => applyPayment({ totalRial: 100 }, [{ amountRial: Number.MAX_SAFE_INTEGER }, { amountRial: 1 }], 1), /سوابق پرداخت/);
+  assert.throws(() => applyPayment({ totalRial: 100 }, [{ amountRial: 101 }], 1), /نامعتبر/);
 });
 
 test('stock changes cannot create negative inventory', () => {
@@ -35,7 +39,6 @@ test('stock changes cannot create negative inventory', () => {
   assert.throws(() => validateStockChange(1, -2), /کافی نیست/);
   assert.throws(() => validateStockChange(-1, 1), /نامعتبر/);
 });
-
 
 test('overdue days use calendar boundaries and ignore invalid due dates', () => {
   const today = new Date(2026, 9, 20, 12, 0, 0);
@@ -46,7 +49,6 @@ test('overdue days use calendar boundaries and ignore invalid due dates', () => 
   assert.equal(daysPastDue('2026-02-30', today), 0);
   assert.equal(daysPastDue('', today), 0);
 });
-
 
 test('invoice numbering remains unique after imported or non-sequential invoices', async () => {
   const { nextInvoiceNumber } = await import('../src/domain.js');

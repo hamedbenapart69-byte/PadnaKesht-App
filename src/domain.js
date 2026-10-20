@@ -42,15 +42,20 @@ export function calculateInvoice(lines, discountRial = 0) {
 }
 
 export function applyPayment(invoice, previousPayments, paymentRial) {
+  if (!Number.isSafeInteger(invoice?.totalRial) || invoice.totalRial < 0) throw new Error('مبلغ کل فاکتور نامعتبر است.');
   if (!Number.isSafeInteger(paymentRial) || paymentRial <= 0) throw new Error('مبلغ پرداخت باید عدد صحیح مثبت به ریال باشد.');
   const paidRial = (previousPayments ?? []).reduce((sum, p) => {
-    if (!Number.isSafeInteger(p.amountRial) || p.amountRial <= 0) throw new Error('سابقهٔ پرداخت نامعتبر است.');
-    return sum + p.amountRial;
+    if (!Number.isSafeInteger(p?.amountRial) || p.amountRial <= 0) throw new Error('سابقهٔ پرداخت نامعتبر است.');
+    const next = sum + p.amountRial;
+    if (!Number.isSafeInteger(next)) throw new Error('جمع سوابق پرداخت بیش از محدودهٔ مجاز است.');
+    return next;
   }, 0);
   const remainingRial = invoice.totalRial - paidRial;
   if (!Number.isSafeInteger(remainingRial) || remainingRial < 0) throw new Error('ماندهٔ فاکتور یا سوابق پرداخت نامعتبر است.');
   if (paymentRial > remainingRial) throw new Error('پرداخت از ماندهٔ فاکتور بیشتر است.');
-  return { paidRial: paidRial + paymentRial, remainingRial: remainingRial - paymentRial };
+  const nextPaidRial = paidRial + paymentRial;
+  if (!Number.isSafeInteger(nextPaidRial)) throw new Error('جمع پرداخت بیش از محدودهٔ مجاز است.');
+  return { paidRial: nextPaidRial, remainingRial: remainingRial - paymentRial };
 }
 
 export function validateStockChange(currentStock, delta) {
