@@ -90,3 +90,9 @@ test('local overdue notifications are offline and permission-gated', () => {
   assert.match(app, /data-enable-overdue-notifications/);
   assert.match(app, /buildOverdueNotificationPlan\(state\.invoices,state\.customers/);
 });
+
+test('native persistence waits for SQLite commit before confirming a mutation', () => {
+  assert.match(app, /return write\.then\(\(\)=>/);
+  assert.match(app, /await persist\(\);alert\('فاکتور '/);
+  assert.match(app, /addEventListener\('submit',async e=>/);
+});

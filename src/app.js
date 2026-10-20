@@ -132,8 +132,38 @@ async function initializeNativeDatabase(){
 nativeDB = await initializeNativeDatabase();
 if(nativeDB){try{localStorage.removeItem(KEY);}catch{}}
 function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&x.version===2)return {...emptyState(),...x};}catch{}const fresh=emptyState();try{const old=JSON.parse(localStorage.getItem('kimi-offline-v1')||'null');if(old&&Array.isArray(old.records)){fresh.legacyRecords=old.records.filter(r=>r&&typeof r==='object');fresh.notes=(Array.isArray(old.notes)?old.notes:[]).filter(n=>n&&typeof n==='object').map(n=>({id:String(n.id||uid()),text:String(n.text||''),createdAt:n.created||new Date().toISOString()}));fresh.audit.push({id:uid(),action:'legacy-migration',entity:'backup',entityId:'kimi-offline-v1',at:new Date().toISOString()});} }catch{}return fresh;}
-function persist(options={}){state.updatedAt=new Date().toISOString();const snapshot=JSON.stringify(state);if(Capacitor.isNativePlatform()&&!nativeDB){alert('ذخیره‌سازی امن SQLite در دسترس نیست؛ ثبت اطلاعات مسدود شد تا از ذخیرهٔ بدون رمزگذاری جلوگیری شود.');throw new Error('Encrypted SQLite unavailable');}if(!Capacitor.isNativePlatform()){try{localStorage.setItem(KEY,snapshot);}catch(e){alert('ذخیره‌سازی محلی ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw e;}}if(nativeDB){nativeWriteQueue=nativeWriteQueue.then(()=>syncNormalizedTables(nativeDB,snapshot)).then(()=>{const status=document.getElementById('storageStatus');if(status)status.textContent='ذخیره‌سازی اصلی: SQLite رمزگذاری‌شده';}).catch(error=>{const status=document.getElementById('storageStatus');if(status)status.textContent='خطا: ذخیره‌سازی امن SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';console.error('SQLite write failed',error);alert('خطا در نوشتن پایگاه دادهٔ رمزگذاری‌شده. پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');});}if(!document.querySelector('.invoice-line'))addInvoiceLine();
-render();if(!options.skipNotificationSync)void syncOverdueNotifications();}
+function persist(options={}){
+  state.updatedAt=new Date().toISOString();
+  const snapshot=JSON.stringify(state);
+  if(Capacitor.isNativePlatform()&&!nativeDB){
+    alert('ذخیره‌سازی امن SQLite در دسترس نیست؛ ثبت اطلاعات مسدود شد تا از ذخیرهٔ بدون رمزگذاری جلوگیری شود.');
+    throw new Error('Encrypted SQLite unavailable');
+  }
+  if(!Capacitor.isNativePlatform()){
+    try{localStorage.setItem(KEY,snapshot);}
+    catch(error){alert('ذخیره‌سازی محلی ناموفق است؛ فوراً از اطلاعات پشتیبان بگیرید.');throw error;}
+    if(!document.querySelector('.invoice-line'))addInvoiceLine();
+    render();
+    if(!options.skipNotificationSync)void syncOverdueNotifications();
+    return Promise.resolve(true);
+  }
+  const write=nativeWriteQueue.catch(()=>false).then(()=>syncNormalizedTables(nativeDB,snapshot));
+  nativeWriteQueue=write;
+  return write.then(()=>{
+    const status=document.getElementById('storageStatus');
+    if(status)status.textContent='ذخیره‌سازی اصلی: SQLite رمزگذاری‌شده';
+    if(!document.querySelector('.invoice-line'))addInvoiceLine();
+    render();
+    if(!options.skipNotificationSync)void syncOverdueNotifications();
+    return true;
+  }).catch(error=>{
+    const status=document.getElementById('storageStatus');
+    if(status)status.textContent='خطا: ذخیره‌سازی امن SQLite ناموفق شد؛ از ادامهٔ ثبت اطلاعات خودداری و پشتیبان تهیه کنید.';
+    console.error('SQLite write failed',error);
+    alert('خطا در نوشتن پایگاه دادهٔ رمزگذاری‌شده. تغییرات ذخیره‌شده تأیید نشدند؛ پیش از ادامه، پشتیبان بگیرید و برنامه را دوباره باز کنید.');
+    throw error;
+  });
+}
 
 async function performNotificationSync(requestPermission=false){
   if(!Capacitor.isNativePlatform())return false;
@@ -201,11 +231,11 @@ function table(headers,rows){if(!rows.length)return '<div class="empty">مورد
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));['dashboard','customers','products','invoices','reports','backup','notes'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==b.dataset.tab));}));
 document.getElementById('customerForm').addEventListener('reset',()=>{customerEditId.value='';});
 document.getElementById('productForm').addEventListener('reset',()=>{productEditId.value='';});
-document.getElementById('customerForm').addEventListener('submit',e=>{e.preventDefault();try{const editingId=customerEditId.value;const customer=validateCustomer({name:customerName.value,phone:customerPhone.value,address:customerAddress.value,notes:customerNotes.value},state.customers.filter(c=>c.id!==editingId));if(editingId){const current=state.customers.find(c=>c.id===editingId);if(!current)throw Error('مشتری برای ویرایش پیدا نشد.');Object.assign(current,customer);audit('update','customer',current.id);persist();e.target.reset();customerEditId.value='';alert('اطلاعات مشتری اصلاح شد.');}else{const item={id:uid(),...customer,createdAt:new Date().toISOString()};state.customers.push(item);audit('create','customer',item.id);persist();e.target.reset();alert('مشتری ذخیره شد.')}}catch(err){alert(err.message||'ذخیره مشتری ناموفق بود.')}});
-document.getElementById('productForm').addEventListener('submit',e=>{e.preventDefault();try{const editingId=productEditId.value;const name=normalizeText(productName.value);if(!name)throw Error('نام محصول الزامی است.');if(state.products.some(p=>p.id!==editingId&&p.name.toLocaleLowerCase()===name.toLocaleLowerCase()))throw Error('نام محصول تکراری است.');const price=num(productPrice.value),stock=num(productStock.value);if(editingId){const current=state.products.find(p=>p.id===editingId);if(!current)throw Error('محصول برای ویرایش پیدا نشد.');if(price!==current.priceRial){current.priceHistory=current.priceHistory||[];current.priceHistory.push({priceRial:price,at:new Date().toISOString()});}const stockDelta=stock-current.stock;current.name=name;current.unit=productUnit.value;current.priceRial=price;current.stock=stock;audit('update','product',current.id,'price '+price);if(stockDelta!==0)audit('stock-adjustment','product',current.id,'delta '+stockDelta);persist();e.target.reset();productEditId.value='';alert('اطلاعات محصول اصلاح شد.');}else{const item={id:uid(),name,unit:productUnit.value,priceRial:price,stock,createdAt:new Date().toISOString(),priceHistory:[{priceRial:price,at:new Date().toISOString()}]};state.products.push(item);audit('create','product',item.id);persist();e.target.reset();alert('محصول ذخیره شد.')}}catch(err){alert(err.message||'ذخیره محصول ناموفق بود.')}});
+document.getElementById('customerForm').addEventListener('submit',async e=>{e.preventDefault();try{const editingId=customerEditId.value;const customer=validateCustomer({name:customerName.value,phone:customerPhone.value,address:customerAddress.value,notes:customerNotes.value},state.customers.filter(c=>c.id!==editingId));if(editingId){const current=state.customers.find(c=>c.id===editingId);if(!current)throw Error('مشتری برای ویرایش پیدا نشد.');Object.assign(current,customer);audit('update','customer',current.id);await persist();e.target.reset();customerEditId.value='';alert('اطلاعات مشتری اصلاح شد.');}else{const item={id:uid(),...customer,createdAt:new Date().toISOString()};state.customers.push(item);audit('create','customer',item.id);await persist();e.target.reset();alert('مشتری ذخیره شد.')}}catch(err){alert(err.message||'ذخیره مشتری ناموفق بود.')}});
+document.getElementById('productForm').addEventListener('submit',async e=>{e.preventDefault();try{const editingId=productEditId.value;const name=normalizeText(productName.value);if(!name)throw Error('نام محصول الزامی است.');if(state.products.some(p=>p.id!==editingId&&p.name.toLocaleLowerCase()===name.toLocaleLowerCase()))throw Error('نام محصول تکراری است.');const price=num(productPrice.value),stock=num(productStock.value);if(editingId){const current=state.products.find(p=>p.id===editingId);if(!current)throw Error('محصول برای ویرایش پیدا نشد.');if(price!==current.priceRial){current.priceHistory=current.priceHistory||[];current.priceHistory.push({priceRial:price,at:new Date().toISOString()});}const stockDelta=stock-current.stock;current.name=name;current.unit=productUnit.value;current.priceRial=price;current.stock=stock;audit('update','product',current.id,'price '+price);if(stockDelta!==0)audit('stock-adjustment','product',current.id,'delta '+stockDelta);await persist();e.target.reset();productEditId.value='';alert('اطلاعات محصول اصلاح شد.');}else{const item={id:uid(),name,unit:productUnit.value,priceRial:price,stock,createdAt:new Date().toISOString(),priceHistory:[{priceRial:price,at:new Date().toISOString()}]};state.products.push(item);audit('create','product',item.id);await persist();e.target.reset();alert('محصول ذخیره شد.')}}catch(err){alert(err.message||'ذخیره محصول ناموفق بود.')}});
 document.getElementById('addInvoiceLine').addEventListener('click',()=>addInvoiceLine());
 document.getElementById('invoiceLines').addEventListener('click',e=>{if(e.target.closest('.invoice-line-remove')){const rows=[...document.querySelectorAll('.invoice-line')];if(rows.length<=1)return alert('فاکتور باید دست‌کم یک قلم داشته باشد.');e.target.closest('.invoice-line').remove();}});
-document.getElementById('invoiceForm').addEventListener('submit',e=>{e.preventDefault();try{
+document.getElementById('invoiceForm').addEventListener('submit',async e=>{e.preventDefault();try{
 const editingId=invoiceEditId;
 const existingInvoice=editingId?state.invoices.find(i=>i.id===editingId):null;
 if(editingId&&(!existingInvoice||existingInvoice.status==='cancelled'))throw Error('فاکتور برای ویرایش معتبر نیست.');
@@ -230,23 +260,23 @@ if(existingInvoice){
   Object.assign(existingInvoice,{customerId:customer.id,lines:invoiceLines,productId:invoiceLines[0].productId,productName:invoiceLines[0].productName,unit:invoiceLines[0].unit,quantity:invoiceLines.reduce((sum,line)=>sum+line.quantity,0),unitPriceRial:invoiceLines[0].unitPriceRial,subtotalRial:calc.subtotalRial,discountRial:discount,totalRial:calc.totalRial,dueDate:invoiceDue.value||''});
   audit('update','invoice',existingInvoice.id,existingInvoice.number);
   for(const change of stockChanges)if(change.delta!==0)audit('stock-adjustment','product',change.productId,'invoice edit '+existingInvoice.number+' delta '+change.delta);
-  persist();alert('تغییرات فاکتور '+existingInvoice.number+' ذخیره شد. مانده: '+money(payment.remainingRial));
+  await persist();alert('تغییرات فاکتور '+existingInvoice.number+' ذخیره شد. مانده: '+money(payment.remainingRial));
 }else{
   const id=uid();const invoice={id,number:nextInvoiceNumber(state.invoices),customerId:customer.id,lines:invoiceLines,productId:invoiceLines[0].productId,productName:invoiceLines[0].productName,unit:invoiceLines[0].unit,quantity:invoiceLines.reduce((sum,line)=>sum+line.quantity,0),unitPriceRial:invoiceLines[0].unitPriceRial,subtotalRial:calc.subtotalRial,discountRial:discount,totalRial:calc.totalRial,paidRial:payment.paidRial,dueDate:invoiceDue.value||'',createdAt:new Date().toISOString(),status:'active',payments:payment.paidRial?[{id:uid(),amountRial:payment.paidRial,at:new Date().toISOString(),kind:'initial'}]:[]};
   state.invoices.push(invoice);audit('create','invoice',id,invoice.number);
   for(const change of stockChanges)if(change.delta!==0)audit('stock-decrease','product',change.productId,'invoice '+invoice.number+' delta '+change.delta);
-  persist();alert('فاکتور '+invoice.number+' ثبت شد. مانده: '+money(payment.remainingRial));
+  await persist();alert('فاکتور '+invoice.number+' ثبت شد. مانده: '+money(payment.remainingRial));
 }
 invoiceEditId='';e.target.reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';
 }catch(err){alert(err.message||'ثبت یا ویرایش فاکتور ناموفق بود.')}});
 document.getElementById('cancelInvoiceEdit').addEventListener('click',()=>{invoiceEditId='';document.getElementById('invoiceForm').reset();invoicePaid.disabled=false;document.getElementById('invoiceSubmit').textContent='ثبت فاکتور و به‌روزرسانی موجودی';document.getElementById('cancelInvoiceEdit').classList.add('hidden');document.getElementById('invoiceLines').innerHTML='';addInvoiceLine();invoiceDiscount.value='0';invoicePaid.value='0';});
-document.getElementById('paymentForm').addEventListener('submit',e=>{e.preventDefault();try{const invoice=state.invoices.find(i=>i.id===paymentInvoice.value);if(!invoice||invoice.status==='cancelled')throw Error('فاکتور معتبر انتخاب کنید.');const amount=num(paymentAmount.value);if(!Array.isArray(invoice.payments)){invoice.payments=[];if(invoice.paidRial>0)invoice.payments.push({id:uid(),amountRial:invoice.paidRial,at:invoice.createdAt||new Date().toISOString(),kind:'opening-balance-migration'});}const result=applyPayment({totalRial:invoice.totalRial},invoice.payments,amount);invoice.payments.push({id:uid(),amountRial:amount,at:new Date().toISOString(),kind:'partial'});invoice.paidRial=result.paidRial;audit('payment','invoice',invoice.id,money(amount));persist();e.target.reset();alert('دریافت ثبت شد. مانده: '+money(result.remainingRial));}catch(err){alert(err.message||'ثبت دریافت ناموفق بود.')}});
-document.addEventListener('click',e=>{
+document.getElementById('paymentForm').addEventListener('submit',async e=>{e.preventDefault();try{const invoice=state.invoices.find(i=>i.id===paymentInvoice.value);if(!invoice||invoice.status==='cancelled')throw Error('فاکتور معتبر انتخاب کنید.');const amount=num(paymentAmount.value);if(!Array.isArray(invoice.payments)){invoice.payments=[];if(invoice.paidRial>0)invoice.payments.push({id:uid(),amountRial:invoice.paidRial,at:invoice.createdAt||new Date().toISOString(),kind:'opening-balance-migration'});}const result=applyPayment({totalRial:invoice.totalRial},invoice.payments,amount);invoice.payments.push({id:uid(),amountRial:amount,at:new Date().toISOString(),kind:'partial'});invoice.paidRial=result.paidRial;audit('payment','invoice',invoice.id,money(amount));await await persist();e.target.reset();alert('دریافت ثبت شد. مانده: '+money(result.remainingRial));}catch(err){alert(err.message||'ثبت دریافت ناموفق بود.')}});
+document.addEventListener('click',async e=>{
 const notificationButton=e.target.closest('[data-enable-overdue-notifications]');
 if(notificationButton){
   if(!Capacitor.isNativePlatform()){alert('اعلان‌های سیستمی فقط در نسخهٔ نصب‌شدهٔ اندروید در دسترس هستند.');return;}
-  state.notificationsEnabled=true;persist({skipNotificationSync:true});
-  void syncOverdueNotifications(true).then(enabled=>{
+  state.notificationsEnabled=true;await persist({skipNotificationSync:true});
+  void syncOverdueNotifications(true).then(async enabled=>{
     state.notificationsEnabled=enabled;
     persist({skipNotificationSync:true});
     alert(enabled?'اعلان‌های محلی مطالبات فعال شد.':'اجازهٔ اعلان داده نشد یا زمان‌بندی اعلان‌ها ناموفق بود.');
@@ -266,14 +296,14 @@ if(invoiceEditButton){
 }
 const ce=e.target.closest('[data-customer-edit]');if(ce){const item=state.customers.find(x=>x.id===ce.dataset.customerEdit);if(item){customerEditId.value=item.id;customerName.value=item.name;customerPhone.value=item.phone||'';customerAddress.value=item.address||'';customerNotes.value=item.notes||'';document.querySelector('[data-tab="customers"]').click();customerName.focus();}}
 const pe=e.target.closest('[data-product-edit]');if(pe){const item=state.products.find(x=>x.id===pe.dataset.productEdit);if(item){productEditId.value=item.id;productName.value=item.name;productUnit.value=item.unit;productPrice.value=String(item.priceRial);productStock.value=String(item.stock);document.querySelector('[data-tab="products"]').click();productName.focus();}}
-const c=e.target.closest('[data-customer-delete]');if(c){const id=c.dataset.customerDelete;if(state.invoices.some(i=>i.customerId===id&&i.status!=='cancelled'))return alert('مشتری دارای فاکتور است؛ برای حفظ سابقه حذف نمی‌شود.');if(confirm('مشتری حذف شود؟')){state.customers=state.customers.filter(x=>x.id!==id);audit('delete','customer',id);persist();}}
+const c=e.target.closest('[data-customer-delete]');if(c){const id=c.dataset.customerDelete;if(state.invoices.some(i=>i.customerId===id&&i.status!=='cancelled'))return alert('مشتری دارای فاکتور است؛ برای حفظ سابقه حذف نمی‌شود.');if(confirm('مشتری حذف شود؟')){state.customers=state.customers.filter(x=>x.id!==id);audit('delete','customer',id);await persist();}}
 const historyButton=e.target.closest('[data-product-history]');if(historyButton){const item=state.products.find(x=>x.id===historyButton.dataset.productHistory);if(item){const events=state.audit.filter(a=>a.entityId===item.id).slice().reverse();alert(events.length?events.map(a=>date(a.at)+' · '+a.action+' · '+(a.detail||'')).join('\n'):'سابقه‌ای ثبت نشده است.');}}
-const priceButton=e.target.closest('[data-product-price]');if(priceButton){const product=state.products.find(x=>x.id===priceButton.dataset.productPrice);if(product){const answer=prompt('قیمت جدید به ریال را وارد کنید:',String(product.priceRial));if(answer!==null){try{const next=num(answer);if(next===product.priceRial)return;product.priceHistory=product.priceHistory||[];product.priceHistory.push({priceRial:next,at:new Date().toISOString()});product.priceRial=next;audit('price-change','product',product.id,money(next));persist();}catch(err){alert(err.message||'قیمت نامعتبر است.')}}}}
-const stockButton=e.target.closest('[data-product-stock]');if(stockButton){const product=state.products.find(x=>x.id===stockButton.dataset.productStock);if(product){const answer=prompt('مقدار موجودی اضافه‌شونده را وارد کنید:', '1');if(answer!==null){try{const amount=num(answer);if(amount<=0)throw Error('مقدار باید بزرگ‌تر از صفر باشد.');product.stock=validateStockChange(product.stock,amount);audit('stock-increase','product',product.id,'qty '+amount);persist();}catch(err){alert(err.message||'مقدار نامعتبر است.')}}}}
-const p=e.target.closest('[data-product-delete]');if(p){const id=p.dataset.productDelete;if(state.invoices.some(i=>i.productId===id||(i.lines||[]).some(line=>line.productId===id)))return alert('محصول دارای سابقه فاکتور است؛ حذف نمی‌شود.');if(confirm('محصول حذف شود؟')){state.products=state.products.filter(x=>x.id!==id);audit('delete','product',id);persist();}}
-const inv=e.target.closest('[data-invoice-cancel]');if(inv){const item=state.invoices.find(i=>i.id===inv.dataset.invoiceCancel);if(!item||item.status==='cancelled')return;if(confirm('فاکتور '+item.number+' لغو شود؟ موجودی بازمی‌گردد و اگر وجهی دریافت شده باشد، یک ثبت برگشت مالی به مبلغ '+money(item.paidRial)+' ایجاد می‌شود. فقط اگر برگشت وجه واقعاً انجام شده یا جداگانه ثبت خواهد شد تأیید کنید.')){const affected=item.lines||[{productId:item.productId,quantity:item.quantity}];for(const line of affected){const product=state.products.find(p=>p.id===line.productId);if(product)product.stock=validateStockChange(product.stock,line.quantity);}if(item.paidRial>0){item.refunds=item.refunds||[];item.refunds.push({id:uid(),amountRial:item.paidRial,at:new Date().toISOString(),kind:'cancellation-refund'});audit('refund','invoice',item.id,money(item.paidRial));item.refundedRial=(item.refundedRial||0)+item.paidRial;item.paidRial=0;}item.status='cancelled';audit('cancel','invoice',item.id);persist();}}
-const n=e.target.closest('[data-note-delete]');if(n&&confirm('یادداشت حذف شود؟')){state.notes=state.notes.filter(x=>x.id!==n.dataset.noteDelete);persist();}});
-document.getElementById('noteForm').addEventListener('submit',e=>{e.preventDefault();const text=normalizeText(noteText.value);if(!text)return;state.notes.push({id:uid(),text,createdAt:new Date().toISOString()});persist();e.target.reset();});
+const priceButton=e.target.closest('[data-product-price]');if(priceButton){const product=state.products.find(x=>x.id===priceButton.dataset.productPrice);if(product){const answer=prompt('قیمت جدید به ریال را وارد کنید:',String(product.priceRial));if(answer!==null){try{const next=num(answer);if(next===product.priceRial)return;product.priceHistory=product.priceHistory||[];product.priceHistory.push({priceRial:next,at:new Date().toISOString()});product.priceRial=next;audit('price-change','product',product.id,money(next));await persist();}catch(err){alert(err.message||'قیمت نامعتبر است.')}}}}
+const stockButton=e.target.closest('[data-product-stock]');if(stockButton){const product=state.products.find(x=>x.id===stockButton.dataset.productStock);if(product){const answer=prompt('مقدار موجودی اضافه‌شونده را وارد کنید:', '1');if(answer!==null){try{const amount=num(answer);if(amount<=0)throw Error('مقدار باید بزرگ‌تر از صفر باشد.');product.stock=validateStockChange(product.stock,amount);audit('stock-increase','product',product.id,'qty '+amount);await persist();}catch(err){alert(err.message||'مقدار نامعتبر است.')}}}}
+const p=e.target.closest('[data-product-delete]');if(p){const id=p.dataset.productDelete;if(state.invoices.some(i=>i.productId===id||(i.lines||[]).some(line=>line.productId===id)))return alert('محصول دارای سابقه فاکتور است؛ حذف نمی‌شود.');if(confirm('محصول حذف شود؟')){state.products=state.products.filter(x=>x.id!==id);audit('delete','product',id);await persist();}}
+const inv=e.target.closest('[data-invoice-cancel]');if(inv){const item=state.invoices.find(i=>i.id===inv.dataset.invoiceCancel);if(!item||item.status==='cancelled')return;if(confirm('فاکتور '+item.number+' لغو شود؟ موجودی بازمی‌گردد و اگر وجهی دریافت شده باشد، یک ثبت برگشت مالی به مبلغ '+money(item.paidRial)+' ایجاد می‌شود. فقط اگر برگشت وجه واقعاً انجام شده یا جداگانه ثبت خواهد شد تأیید کنید.')){const affected=item.lines||[{productId:item.productId,quantity:item.quantity}];for(const line of affected){const product=state.products.find(p=>p.id===line.productId);if(product)product.stock=validateStockChange(product.stock,line.quantity);}if(item.paidRial>0){item.refunds=item.refunds||[];item.refunds.push({id:uid(),amountRial:item.paidRial,at:new Date().toISOString(),kind:'cancellation-refund'});audit('refund','invoice',item.id,money(item.paidRial));item.refundedRial=(item.refundedRial||0)+item.paidRial;item.paidRial=0;}item.status='cancelled';audit('cancel','invoice',item.id);await persist();}}
+const n=e.target.closest('[data-note-delete]');if(n&&confirm('یادداشت حذف شود؟')){state.notes=state.notes.filter(x=>x.id!==n.dataset.noteDelete);await persist();}});
+document.getElementById('noteForm').addEventListener('submit',async e=>{e.preventDefault();const text=normalizeText(noteText.value);if(!text)return;state.notes.push({id:uid(),text,createdAt:new Date().toISOString()});await persist();e.target.reset();});
 document.getElementById('exportJson').onclick=()=>download('padnakasht-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),'application/json');
 document.getElementById('importButton').onclick=()=>importFile.click();
 document.getElementById('importFile').onchange=async e=>{
@@ -288,7 +318,7 @@ document.getElementById('importFile').onchange=async e=>{
       for(const item of validated[key])if(!ids.has(item.id)){state[key].push(item);ids.add(item.id);}
     }
     state.audit.push({id:uid(),action:'restore-merge',entity:'backup',entityId:'',at:new Date().toISOString()});
-    persist();alert('بازیابی و ادغام داده‌ها انجام شد.');
+    await persist();alert('بازیابی و ادغام داده‌ها انجام شد.');
   }catch(err){alert(err.message||'فایل پشتیبان معتبر نیست.')}
   e.target.value='';
 };
@@ -302,6 +332,6 @@ const sheets=[
 download('padnakasht-report.xlsx',buildXlsx(sheets),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 };
 document.getElementById('print').onclick=()=>window.print();
-document.getElementById('clearAll').onclick=()=>{if(confirm('همه اطلاعات این دستگاه برای همیشه حذف شود؟ ابتدا پشتیبان بگیرید.')){state=emptyState();persist();}};
+document.getElementById('clearAll').onclick=async()=>{if(confirm('همه اطلاعات این دستگاه برای همیشه حذف شود؟ ابتدا پشتیبان بگیرید.')){state=emptyState();await persist();}};
 render();
 if(state.notificationsEnabled)void syncOverdueNotifications();
