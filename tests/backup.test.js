@@ -60,3 +60,14 @@ test('backup rejects child transaction IDs reused across invoices', () => {
   const first = {...invoice, payments:[{id:'shared-payment',amountRial:50000}]};
   assert.throws(()=>validateBackupPayload({customers:[customer],products:[product],invoices:[first,second],notes:[]},empty()), /شناسهٔ تراکنش بین دو فاکتور/);
 });
+
+test('backup rejects an edited existing invoice that takes another invoice number', () => {
+  const existing={...empty(),invoices:[
+    {...invoice,id:'existing-1',number:'PK-00001'},
+    {...invoice,id:'existing-2',number:'PK-00002'}
+  ]};
+  const edited={...invoice,id:'existing-1',number:'PK-00002'};
+  assert.throws(()=>validateBackupPayload({
+    customers:[customer],products:[product],invoices:[edited],notes:[]
+  },existing),/شمارهٔ فاکتور تکراری/);
+});

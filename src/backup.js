@@ -96,8 +96,7 @@ export function validateBackupPayload(payload, currentState) {
       if (owner && owner !== invoice.id) throw new Error('شناسهٔ تراکنش بین دو فاکتور تکرار شده است؛ هیچ داده‌ای وارد نشد.');
     }
     for (const entry of localChildIds) childIds.set(entry, invoice.id);
-    if (invoiceNumbers.has(invoice.number) && invoiceNumbers.get(invoice.number) !== invoice.id &&
-        !currentInvoiceIds.has(invoice.id)) {
+    if (invoiceNumbers.has(invoice.number) && invoiceNumbers.get(invoice.number) !== invoice.id) {
       throw new Error('شمارهٔ فاکتور تکراری است: ' + invoice.number + '؛ هیچ داده‌ای وارد نشد.');
     }
     if (invoice.status !== 'cancelled' && !knownCustomers.has(invoice.customerId)) {
