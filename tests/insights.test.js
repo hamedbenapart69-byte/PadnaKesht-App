@@ -10,7 +10,7 @@ const products = [
 ];
 const invoices = [
   {id:'i1',status:'active',createdAt:'2026-10-01T12:00:00.000Z',dueDate:'2026-10-25',totalRial:100000,paidRial:50000,lines:[{productId:'p1',quantity:3}]},
-  {id:'i2',status:'active',createdAt:'2026-09-25T12:00:00.000Z',dueDate:'2026-10-01',totalRial:50000,paidRial:30000,lines:[{productId:'p1',quantity:2}]},
+  {id:'i2',status:'active',createdAt:'2026-09-10T12:00:00.000Z',dueDate:'2026-10-01',totalRial:50000,paidRial:30000,lines:[{productId:'p1',quantity:2}]},
   {id:'i3',status:'cancelled',createdAt:'2026-10-05T12:00:00.000Z',dueDate:'2026-10-25',totalRial:900000,paidRial:0,lines:[{productId:'p2',quantity:99}]}
 ];
 
