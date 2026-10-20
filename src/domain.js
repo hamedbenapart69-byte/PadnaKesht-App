@@ -12,10 +12,10 @@ export function validateCustomer(customer, existing = []) {
   if (phone && !/^[+\d۰-۹٠-٩()\-\s]{7,20}$/.test(phone)) {
     throw new Error('شماره تماس معتبر نیست.');
   }
-  const key = phone.replace(/\D/g, '');
+  const key = normalizeDigits(phone).replace(/\D/g, '');
   if (existing.some(item =>
     normalizeText(item.name).toLocaleLowerCase() === name.toLocaleLowerCase() ||
-    (key && normalizeText(item.phone).replace(/\D/g, '') === key)
+    (key && normalizeDigits(normalizeText(item.phone)).replace(/\D/g, '') === key)
   )) throw new Error('مشتری تکراری است.');
   return { name, phone, address: normalizeText(customer?.address), notes: normalizeText(customer?.notes) };
 }
