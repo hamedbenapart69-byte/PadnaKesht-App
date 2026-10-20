@@ -33,6 +33,8 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install
+      - name: Keep Capacitor 6 compatible with patched tar
+        run: node scripts/patch-capacitor-cli-tar.mjs
       - name: Run automated tests
         run: npm test
       - name: Build offline web assets
