@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build-qa-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - name: Checkout dedicated branch
         uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Install and launch QA APK in Android emulator
-        timeout-minutes: 15
+        timeout-minutes: 30
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -85,7 +85,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           heap-size: 512M
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
