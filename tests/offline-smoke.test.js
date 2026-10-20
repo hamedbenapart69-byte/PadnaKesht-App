@@ -18,6 +18,7 @@ test('business modules and backup controls exist', () => {
   assert.match(app, /padnakasht-backup/);
   assert.match(app, /SQLiteConnection/);
   assert.match(app, /CREATE TABLE IF NOT EXISTS app_state/);
+  for (const table of ['customers','products','invoices','invoice_lines','payments','notes','audit_log']) assert.ok(app.includes('CREATE TABLE IF NOT EXISTS ' + table), 'missing SQLite table ' + table);
   assert.match(app, /function csvCell/);
   assert.match(app, /text=\"'\"\+text/);
   assert.match(app, /application\/json/);
