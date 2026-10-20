@@ -11,6 +11,7 @@ on:
       - 'capacitor.config.*'
       - 'vite.config.js'
       - 'tests/**'
+      - 'scripts/**'
       - '.github/workflows/android-qa-build.yml'
 permissions:
   contents: read
@@ -31,7 +32,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Run automated tests
         run: npm test
       - name: Build offline web assets
@@ -88,30 +89,4 @@ jobs:
           emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            set -eu
-            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-            adb logcat -c
-            adb shell am start -n com.padnakasht.kimi/.MainActivity
-            sleep 10
-            adb logcat -d > android-emulator-log.txt
-            if ! adb shell pidof com.padnakasht.kimi; then
-              echo "QA failure: application process exited after launch. Relevant logcat follows."
-              grep -E -i 'FATAL EXCEPTION|AndroidRuntime|SQLite initialization failed|No such plugin|Uncaught (ReferenceError|TypeError|SyntaxError)|Uncaught Error|chromium|Capacitor' android-emulator-log.txt | tail -n 160 || true
-              exit 1
-            fi
-            adb shell run-as com.padnakasht.kimi ls databases | grep -q 'padnakashtSQLite.db'
-            adb shell settings put global airplane_mode_on 1
-            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true || true
-            adb shell am force-stop com.padnakasht.kimi
-            adb shell am start -n com.padnakasht.kimi/.MainActivity
-            sleep 5
-            adb logcat -d > android-emulator-log.txt
-            if ! adb shell pidof com.padnakasht.kimi; then
-              echo "QA failure: app did not survive offline relaunch. Relevant logcat follows."
-              grep -E -i 'FATAL EXCEPTION|AndroidRuntime|SQLite initialization failed|No such plugin|Uncaught (ReferenceError|TypeError|SyntaxError)|Uncaught Error|chromium|Capacitor' android-emulator-log.txt | tail -n 160 || true
-              exit 1
-            fi
-            if grep -E 'FATAL EXCEPTION|SQLite initialization failed|No such plugin|Uncaught (ReferenceError|TypeError|SyntaxError)|Uncaught Error' android-emulator-log.txt; then
-              exit 1
-            fi
+          script: bash scripts/android-emulator-smoke.sh
