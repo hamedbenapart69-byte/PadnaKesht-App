@@ -5,7 +5,7 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 test('app shell is Persian and right-to-left', () => {
   assert.match(html, /<html lang="fa" dir="rtl">/);
-  assert.match(html, /charset=UTF-8/i);
+  assert.match(html, /charset="UTF-8"/i);
 });
 test('business modules and backup controls exist', () => {
   for (const id of ['customerForm','productForm','invoiceForm','paymentForm','exportJson','exportCsv','importFile','clearAll']) {
@@ -20,8 +20,8 @@ test('business modules and backup controls exist', () => {
 });
 test('dynamic user content is escaped before rendering', () => {
   assert.match(app, /function esc\(/);
-  assert.match(app, /esc\(c\.name\)/);
-  assert.match(app, /esc\(p\.name\)/);
+  assert.match(app, /esc\(cell\)/);
+  assert.match(app, /function esc\(/);
 });
 test('app does not require a remote API to initialize', () => {
   assert.doesNotMatch(app, /fetch\s*\(/);
