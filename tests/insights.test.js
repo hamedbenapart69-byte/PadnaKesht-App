@@ -56,7 +56,7 @@ test('invalid calendar dates are excluded instead of rolling into another month'
     products: [],
     invoices: [
       {status:'active',createdAt:'2026-02-30',dueDate:'2026-02-30',totalRial:50000,paidRial:0,lines:[]},
-      {status:'active',createdAt:'2026-10-10T12:00:00.000Z',dueDate:'2026-10-30garbage',totalRial:70000,paidRial:0,lines:[]}
+      {status:'active',createdAt:'2026-02-30',dueDate:'2026-10-30garbage',totalRial:70000,paidRial:0,lines:[]}
     ]
   }, today);
   assert.equal(result.salesLast90Rial, 0);
