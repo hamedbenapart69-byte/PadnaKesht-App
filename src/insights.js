@@ -23,7 +23,7 @@ export function buildOfflineInsights({ customers = [], products = [], invoices =
   const next30 = new Date(current.getTime() + 30 * DAY_MS);
   const next90 = new Date(current.getTime() - 90 * DAY_MS);
   const prev30 = new Date(current.getTime() - 30 * DAY_MS);
-  const activeInvoices = invoices.filter(invoice => invoice && invoice.status !== 'cancelled');
+  const activeInvoices = invoices.filter(invoice => invoice && invoice.status !== 'cancelled' && Number.isSafeInteger(invoice.totalRial) && invoice.totalRial >= 0 && Number.isSafeInteger(invoice.paidRial) && invoice.paidRial >= 0 && invoice.paidRial <= invoice.totalRial);
   const dated = activeInvoices.map(invoice => ({ invoice, created: validDate(invoice.createdAt), due: validDate(invoice.dueDate) }));
   const salesIn = (from, to) => safeSum(dated.filter(x => x.created && x.created >= from && x.created < to).map(x => Math.max(0, Number.isSafeInteger(x.invoice.totalRial) ? x.invoice.totalRial : 0)));
   const salesLast30Rial = salesIn(prev30, current);
