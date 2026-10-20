@@ -3,6 +3,8 @@ export function normalizeText(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
 }
 
+export function normalizeDigits(value) { return String(value ?? '').replace(/[۰-۹٠-٩]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) >= 0 ? '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) : '٠١٢٣٤٥٦٧٨٩'.indexOf(digit))); }
+
 export function validateCustomer(customer, existing = []) {
   const name = normalizeText(customer?.name);
   const phone = normalizeText(customer?.phone);
