@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "test": "node --test tests/auth.test.js tests/domain.test.js tests/backup.test.js tests/notifications.test.js tests/xlsx.test.js tests/offline-smoke.test.js tests/smoke.test.js",
+    "test": "node --test tests/auth.test.js tests/domain.test.js tests/backup.test.js tests/notifications.test.js tests/xlsx.test.js tests/insights.test.js tests/offline-smoke.test.js tests/smoke.test.js",
     "release:gate": "node tests/release-gate.test.js"
   },
   "dependencies": {
