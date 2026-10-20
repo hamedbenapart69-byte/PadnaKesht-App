@@ -74,6 +74,6 @@ export function daysPastDue(dueDate, today = new Date()) {
   if (due.getUTCFullYear() !== year || due.getUTCMonth() !== month - 1 || due.getUTCDate() !== day) return 0;
   const now = new Date(today);
   if (Number.isNaN(now.getTime())) return 0;
-  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.max(0, Math.floor((todayUtc - due.getTime()) / 86400000));
 }
