@@ -121,3 +121,14 @@ test('native app fails closed instead of exposing local data when encrypted SQLi
   assert.match(app, /authSubmit\.disabled=true/);
   assert.match(app, /هیچ اطلاعاتی نمایش داده یا ثبت نمی‌شود/);
 });
+
+test('dashboard uses modern visual hierarchy and data-driven insights without fabricated business records', () => {
+  assert.match(html, /class="hero"/);
+  assert.match(html, /class="hero-mark"/);
+  assert.match(html, /id="dashboardInsights"/);
+  assert.match(html, /id="restoreFromDashboard"/);
+  assert.match(app, /روند فروش · ۶ ماه اخیر/);
+  assert.match(app, /دادهٔ نمونه نمایش داده نمی‌شود/);
+  assert.match(app, /اطلاعات قبلی در این نصب پیدا نشد/);
+  assert.match(app, /restoreFromDashboard/);
+});
