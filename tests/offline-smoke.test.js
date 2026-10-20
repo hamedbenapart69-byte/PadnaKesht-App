@@ -37,3 +37,12 @@ test('app does not require a remote API to initialize', () => {
   assert.doesNotMatch(app, /fetch\s*\(/);
   assert.match(app, /render\(\);/);
 });
+
+test('cancelled invoices cannot appear as payment targets or create outstanding balances in exports', () => {
+  assert.match(app, /filter\(i=>i\.status!=='cancelled'&&i\.paidRial<i\.totalRial\)/);
+  assert.match(app, /i\.status==='cancelled'\?0:i\.totalRial-i\.paidRial/);
+});
+test('partial payment safely handles older invoices without a payments array', () => {
+  assert.match(app, /if\(!Array\.isArray\(invoice\.payments\)\)\{invoice\.payments=\[\]/);
+  assert.match(app, /opening-balance-migration/);
+});
