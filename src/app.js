@@ -384,6 +384,16 @@ function unlockApp(){
 }
 async function initializeAppLock(){
   document.body.classList.add('auth-loading');
+  if(Capacitor.isNativePlatform()&&!nativeDB){
+    showAuthGate(false);
+    authTitle.textContent='ذخیره‌سازی امن در دسترس نیست';
+    authHint.textContent='پایگاه دادهٔ رمزگذاری‌شده آماده نشده است. برای جلوگیری از افشای اطلاعات، ورود به برنامه مسدود است. داده‌های محلی حذف نشده‌اند؛ برنامه را دوباره اجرا کنید و در صورت تداوم خطا، پیش از هر اقدام از مسیر بازیابی امن کمک بگیرید.';
+    authPin.disabled=true;
+    authPinConfirm.disabled=true;
+    authSubmit.disabled=true;
+    authMessage.textContent='SQLite رمزگذاری‌شده آماده نیست؛ هیچ اطلاعاتی نمایش داده یا ثبت نمی‌شود.';
+    return;
+  }
   const credential=state.security?.pinCredential;
   showAuthGate(!credential);
 }
